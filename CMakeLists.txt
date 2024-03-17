@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
+
 option(WITH_PCG32 "Use PCG32 random number generator" OFF)
 option(WITH_HEAPSTATS "Enable heap allocation statistics" ON)
 
@@ -34,6 +35,7 @@ add_executable(speed_test speed_test.cpp
     anchor/anchorengine.h
     memento/mashtable.h
     jump/jumpengine.h
+    dx/dxEngine.h
     power/powerengine.h
     utils.h
     utils.cpp
@@ -46,6 +48,7 @@ add_executable(balance balance.cpp
     anchor/AnchorHashQre.cpp anchor/AnchorHashQre.hpp  anchor/misc/crc32c_sse42_u64.h
     anchor/anchorengine.h
     memento/mashtable.h
+    dx/dxEngine.h
     jump/jumpengine.h
     power/powerengine.h
     utils.h
