@@ -1,7 +1,0 @@
-Memento<boost::unordered_flat_map>:	Anchor	1000000	Working	1000000	Removals	20000	Rate	11.5824	MaxHeap	802488	AlgoSizeof	56
-Memento<boost::unordered_flat_map>:	Anchor	1000000	Working	1000000	Removals	20000	Rate	11.5836	MaxHeap	802488	AlgoSizeof	56
-Memento<boost::unordered_flat_map>:	Anchor	1000000	Working	1000000	Removals	20000	Rate	8.68252	MaxHeap	802488	AlgoSizeof	56
-Memento<boost::unordered_flat_map>:	Anchor	1000000	Working	1000000	Removals	20000	Rate	8.1935	MaxHeap	802488	AlgoSizeof	56
-Memento<boost::unordered_flat_map>: Balance: 8.82	rand()
-Memento<boost::unordered_flat_map>: Balance: 8.82	rand()
-Memento<boost::unordered_flat_map>: Balance: 7.84	rand()
