@@ -8,6 +8,7 @@
     "cxxopts",
     "xxhash",
     "pcg",
-    "gtl"
+    "gtl",
+    "boost-dynamic-bitset"
   ]
 }

@@ -62,6 +62,7 @@ add_executable(monotonicity monotonicity.cpp
     anchor/AnchorHashQre.cpp anchor/AnchorHashQre.hpp  anchor/misc/crc32c_sse42_u64.h
     anchor/anchorengine.h
     memento/mashtable.h
+    dx/dxEngine.h
     jump/jumpengine.h
     power/powerengine.h
     utils.h

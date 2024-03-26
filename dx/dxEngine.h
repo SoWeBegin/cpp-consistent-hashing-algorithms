@@ -20,52 +20,57 @@
 #include "../utils.h"
 #include <deque>
 #include <random>
+#include <pcg_random.hpp>
 
 class DxEngine final {
 public:
-    DxEngine(uint32_t , uint32_t size)
-        : m_size(size), m_capacity(size * 1000) {
-        m_failed.set(capacity);
+    explicit DxEngine(uint32_t, uint32_t size)
+        : m_size(size), m_capacity(size * 10 /* https://amosbrocco.ch/pubs/paper03.pdf p. 6 */) {
+        m_failed.resize(m_capacity);
+        m_failed.set(m_size, m_capacity - m_size, true);
     }
 
-    uint32_t getBucket(const uint64_t key, const uint64_t seed) o {
-        uint64_t hashValue = crc32c_sse42_u64(key, seed);
-        std::mt19937 generator(hashValue);
-        std::uniform_int_distribution<uint32_t> distribution(0, capacity - 1);
-
-        uint32_t b = distribution(generator);
-        while (failed.test(b)) {
-            b = distribution(generator); // Trova un bucket non fallito
+    uint32_t getBucketCRC32c(uint64_t key, uint64_t seed) {
+        auto hashValue = crc32c_sse42_u64(key, seed);
+        pcg32 rng;
+        static std::uniform_int_distribution<uint32_t> distribution(0, m_capacity - 1);
+        rng.seed(hashValue);
+        uint32_t b = distribution(rng);
+        while (m_failed.test(b)) {
+            b = distribution(rng); // Trova un bucket non fallito
         }
         return b;
     }
 
-    uint32_b addBucket() {
+    uint32_t addBucket() {
         uint32_t b;
-        if (removed.empty()) {
-            b = size++;
+        if (m_removed.empty()) {
+            b = m_size;
         }
         else {
-            b = removed.front();
-            removed.pop_front();
+            b = m_removed.front();
+            m_removed.pop_front();
         }
-        failed.reset(b);
+        m_failed.reset(b);
+        ++m_size;
+
         return b;
     }
 
     uint32_t removeBucket(uint32_t b) {
-        --size;
-        failed.set(b);
-        removed.push_front(b);
+        --m_size;
+        m_failed.set(b);
+        m_removed.push_front(b);
+
         return b;
     }
 
-    uint32_t size() const {
-        return size;
+    uint32_t size() const noexcept {
+        return m_size;
     }
 
-    uint32_t capacity() const {
-        return capacity;
+    uint32_t capacity() const noexcept {
+        return m_capacity;
     }
 
 
@@ -73,7 +78,7 @@ private:
     uint32_t m_size;
     uint32_t m_capacity;
     boost::dynamic_bitset<> m_failed;
-    std::deque<uint32_t> removed;
+    std::deque<uint32_t> m_removed;
 };
 
 
