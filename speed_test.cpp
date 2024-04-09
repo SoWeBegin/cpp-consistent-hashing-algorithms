@@ -32,6 +32,8 @@
 #include <unordered_map>
 #include <gtl/phmap.hpp>
 
+#include "YamlParser/YamlParser.h"
+
  /*
   * ******************************************
   * Heap allocation measurement
@@ -193,6 +195,9 @@ void* operator new[](size_t size) {
         }
 
         int main(int argc, char* argv[]) {
+            YamlParser yamlParser("C:\\Users\\Tony\\OneDrive\\Desktop\\SUPSI\\anno_3", "template.yaml");
+            yamlParser.print();
+
             cxxopts::Options options("speed_test", "MementoHash vs AnchorHash benchmark");
             options.add_options()(
                 "Algorithm",
