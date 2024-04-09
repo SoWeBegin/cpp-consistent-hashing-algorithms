@@ -9,6 +9,7 @@
     "xxhash",
     "pcg",
     "gtl",
-    "boost-dynamic-bitset"
+    "boost-dynamic-bitset",
+    "yaml-cpp"
   ]
 }

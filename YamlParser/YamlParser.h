@@ -26,14 +26,28 @@ private:
 
 public:
 	explicit YamlParser(const std::filesystem::path& directory, const std::string& fileName) {
-		const std::filesystem::path filePath = directory / fileName;
+		const std::filesystem::path filePath = "template.yaml";//directory / fileName;
 		std::cout << "File Path: " << filePath << std::endl; // Debug 
+
+		// Verifica che il file esista
+		if (!std::filesystem::exists(filePath)) {
+			std::cerr << "[YamlParser::YamlParser]: Yaml file (" << filePath << ") not found!\n";
+			return;
+		}
+
+		// Tentativo di apertura del file per verificare i permessi
+		std::ifstream file(filePath);
+		if (!file.is_open()) {
+			std::cerr << "[YamlParser::YamlParser]: Unable to open file (" << filePath << ")!\n";
+			return;
+		}
+
 		m_config = YAML::LoadFile(filePath.string());
 		if (m_config) {
 			parseCommon(m_config["common"]);
 		}
 		else {
-			std::cerr << "[YamlParser::YamlParser]: Yaml file (" << filePath << ") not found!\n";
+			std::cerr << "[YamlParser::YamlParser]: Error loading Yaml file (" << filePath << ")!\n";
 		}
 	}
 
@@ -48,7 +62,7 @@ public:
 			if (common["iterations"]) {
 				auto& iterations = common["iterations"];
 				if (iterations["execution"]) {
-					m_totalBenchmarkIterations = iterations["executions"].as<std::size_t>();
+					m_totalBenchmarkIterations = iterations["execution"].as<std::size_t>();
 				} else {
 					std::cerr << "iterations";
 				}

@@ -16,7 +16,10 @@ find_package(Boost REQUIRED)
 find_package(xxHash REQUIRED)
 find_package(fmt REQUIRED)
 find_package(cxxopts REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_path(GTL_INCLUDE_DIRS "gtl/adv_utils.hpp")
+include_directories(${YAML_CPP_INCLUDE_DIR})
+
 
 if(WITH_PCG32)
     find_path(PCG_INCLUDE_DIRS "pcg_extras.hpp")
@@ -82,11 +85,16 @@ target_include_directories(monotonicity PRIVATE ${GTL_INCLUDE_DIRS})
 target_link_libraries(speed_test PRIVATE xxHash::xxhash fmt::fmt cxxopts::cxxopts)
 target_link_libraries(balance PRIVATE xxHash::xxhash fmt::fmt cxxopts::cxxopts)
 target_link_libraries(monotonicity PRIVATE xxHash::xxhash fmt::fmt cxxopts::cxxopts)
+target_link_libraries(speed_test PRIVATE ${YAML_CPP_LIBRARIES})
+target_link_libraries(balance PRIVATE ${YAML_CPP_LIBRARIES})
+target_link_libraries(monotonicity PRIVATE ${YAML_CPP_LIBRARIES})
+
 include(GNUInstallDirs)
 install(TARGETS speed_test
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
 
 install(TARGETS balance
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
