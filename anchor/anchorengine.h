@@ -19,6 +19,8 @@
 
 class AnchorEngine final {
 public:
+    // anchor_set = capacity
+    // working_set = size
     AnchorEngine(uint32_t anchor_set, uint32_t working_set)
         : m_anchor{anchor_set, working_set}
     {}

@@ -194,6 +194,7 @@ void* operator new[](size_t size) {
             return 0;
         }
 
+        /*
         int main(int argc, char* argv[]) {
             YamlParser yamlParser("C:\\Users\\lucia\\Desktop\\", "template.yaml");
             yamlParser.print();
@@ -316,3 +317,4 @@ void* operator new[](size_t size) {
                 return 2;
             }
         }
+        */

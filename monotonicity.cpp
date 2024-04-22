@@ -32,6 +32,8 @@
 #include <unordered_map>
 #include "dx/dxEngine.h"
 
+// monotonicity: Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
+
  /*
   * Benchmark routine
   */
@@ -189,6 +191,7 @@ int bench(const std::string_view name, const std::string& filename,
     return 0;
 }
 
+/*
 int main(int argc, char* argv[]) {
     cxxopts::Options options("speed_test", "MementoHash vs AnchorHash benchmark");
     options.add_options()("Algorithm",
@@ -294,3 +297,4 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 }
+*/

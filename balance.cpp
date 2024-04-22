@@ -126,6 +126,7 @@ int bench(const std::string_view name, const std::string& filename,
     return 0;
 }
 
+/*
 int main(int argc, char* argv[]) {
     cxxopts::Options options("speed_test", "MementoHash vs AnchorHash benchmark");
     options.add_options()(
@@ -232,3 +233,4 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 }
+*/

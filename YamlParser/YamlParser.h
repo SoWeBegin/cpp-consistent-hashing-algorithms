@@ -2,151 +2,254 @@
 #define YAML_PARSER_H
 
 #include <string>
+#include <vector>
+#include <fstream>
+#include <unordered_map>
 #include <filesystem>
 #include "yaml-cpp/parser.h"
 #include "yaml-cpp/yaml.h"
 
-
-
 #include <iostream>
 
-// put everything inside a struct
+struct AlgorithmSettings final {
+	std::string name;
+	std::unordered_map<std::string, std::string> args; // [argumentName][argumentValue]
+};
+
+struct CommonSettings final {
+	std::string outputFolder;
+	std::size_t totalBenchmarkIterations;
+	std::string unit;
+	std::string mode;
+	std::size_t secondsForEachIteration;
+	std::vector<std::size_t> numInitialActiveNodes;
+	std::vector<std::string> hashFunctions;
+	std::vector<std::string> keyDistributions;
+};
+
+struct BenchmarkSettings final {
+	std::string name;
+	CommonSettings commonSettings;
+	std::unordered_map<std::string, std::string> args; // [argumentName][argumentValue] 
+};
+
+
 class YamlParser final {
 private:
-	YAML::Node m_config;
-	std::string m_outputFolder;
-	std::size_t m_totalBenchmarkIterations;
-	std::string m_unit;
-	std::string m_mode;
-	std::string m_secondsForEachIteration;
-	std::vector<std::size_t> m_numInitialActiveNodes;
-	std::vector<std::string> m_hashFunctions;
-	std::vector<std::string> m_keyDistributions;
-
+	CommonSettings m_commonSettings;
+	std::vector<AlgorithmSettings> m_algorithms;
+	std::vector<BenchmarkSettings> m_benchmarks;
 
 public:
 	explicit YamlParser(const std::filesystem::path& directory, const std::string& fileName) {
 		const std::filesystem::path filePath = "template.yaml";//directory / fileName;
-		std::cout << "File Path: " << filePath << std::endl; // Debug 
 
-		// Verifica che il file esista
 		if (!std::filesystem::exists(filePath)) {
 			std::cerr << "[YamlParser::YamlParser]: Yaml file (" << filePath << ") not found!\n";
 			return;
 		}
 
-		// Tentativo di apertura del file per verificare i permessi
 		std::ifstream file(filePath);
 		if (!file.is_open()) {
 			std::cerr << "[YamlParser::YamlParser]: Unable to open file (" << filePath << ")!\n";
 			return;
 		}
 
-		m_config = YAML::LoadFile(filePath.string());
+		const auto m_config = YAML::LoadFile(filePath.string());
 		if (m_config) {
-			parseCommon(m_config["common"]);
+			parseCommon(m_config["common"], m_commonSettings);
+			parseAlgorithms(m_config["algorithms"]);
+			parseBenchmarks(m_config["benchmarks"]);
 		}
 		else {
 			std::cerr << "[YamlParser::YamlParser]: Error loading Yaml file (" << filePath << ")!\n";
 		}
 	}
 
+	void parseBenchmarks(const YAML::Node& benchmarks) {
+		if (benchmarks) {
+			for (const auto& benchmark : benchmarks) {
+				if (benchmark["name"]) {
+					BenchmarkSettings benchmarkSettings{ benchmark["name"].as<std::string>(), m_commonSettings };
 
-	void parseCommon(const YAML::Node& common) {
+					if (benchmark["common"]) {
+						parseCommon(benchmark["common"], benchmarkSettings.commonSettings);
+					}
+
+					if (benchmark["args"]) {
+						for (const auto& pair : benchmark["args"]) {
+							const YAML::Node& key = pair.first;
+							const YAML::Node& value = pair.second;
+
+							if (key.IsScalar()) {
+								const std::string argName = key.as<std::string>();
+								std::string argValue;
+
+								if (value.IsScalar()) {
+									argValue = value.as<std::string>();
+								} else { // otherwise .as<std::string> throws a bad conversion exception
+									std::stringstream ss;
+									ss << value;
+									argValue = ss.str();
+								}
+								benchmarkSettings.args[argName] = argValue;
+							}
+						}
+					}
+					m_benchmarks.push_back(benchmarkSettings);
+				}
+			}
+		}
+	}
+
+	void parseAlgorithms(const YAML::Node& algorithms) {
+		if (algorithms) {
+			for (const auto& algorithm : algorithms) {
+				if (algorithm["name"]) {
+					AlgorithmSettings algorithmSettings(algorithm["name"].as<std::string>());
+
+					if (algorithm["args"]) {
+						for (const auto& pair : algorithm["args"]) { // [key][value]
+							const std::string argName = pair.first.as<std::string>();
+							const std::string argValue = pair.second.as<std::string>(); 
+							algorithmSettings.args[argName] = argValue;
+						}
+					}
+					m_algorithms.push_back(algorithmSettings);
+				}
+			}
+		}
+	}
+
+	void parseCommon(const YAML::Node& common, CommonSettings& commonSettings) {
 		if (common) {
 			if (common["output-folder"]) {
-				m_outputFolder = common["output-folder"].as<std::string>();
-			} else {
-				std::cerr << "output-folder";
+				commonSettings.outputFolder = common["output-folder"].as<std::string>();
 			}
 			if (common["iterations"]) {
 				auto& iterations = common["iterations"];
 				if (iterations["execution"]) {
-					m_totalBenchmarkIterations = iterations["execution"].as<std::size_t>();
-				} else {
-					std::cerr << "iterations";
+					commonSettings.totalBenchmarkIterations = iterations["execution"].as<std::size_t>();
 				}
-			} else {
-				// error
 			}
 			if (common["time"]) {
 				auto& time = common["time"];
 				if (time["unit"]) {
-					m_unit = time["unit"].as<std::string>();
-				} else {
-					std::cerr << "unit";
-				}
-				if (time["mode"]) {
-					m_mode = time["mode"].as<std::string>();
-				} else {
-					std::cerr << "mode";
-				}
-				if (time["execution"]) {
-					m_secondsForEachIteration = time["execution"].as<std::string>();
-				} else {
-					std::cerr << "execution";
+					commonSettings.unit = time["unit"].as<std::string>();
+					if (time["mode"]) {
+						commonSettings.mode = time["mode"].as<std::string>();
+						if (time["execution"]) {
+							commonSettings.secondsForEachIteration = time["execution"].as<std::size_t>();
+						}
+					}
 				}
 			}
-			else {
-				std::cerr << "time";
-			}
-			if (common["init-notes"] && common["init-nodes"].IsSequence()) {
+			if (common["init-nodes"] && common["init-nodes"].IsSequence()) {
 				for (const auto& node : common["init-nodes"]) {
-					m_numInitialActiveNodes.push_back(node.as<std::size_t>());
+					commonSettings.numInitialActiveNodes.push_back(node.as<std::size_t>());
 				}
-			} else {
-				std::cerr << "Error: 'init-nodes' key is missing or not a sequence." << std::endl;
 			}
 			if (common["hash-functions"] && common["hash-functions"].IsSequence()) {
 				for (const auto& hash_function : common["hash-functions"]) {
 					if (hash_function.IsScalar()) {
-						m_hashFunctions.push_back(hash_function.as<std::string>());
+						commonSettings.hashFunctions.push_back(hash_function.as<std::string>());
 					}
 				}
-			} else {
-				std::cerr << "hash-functions";
 			}
 			if (common["key-distributions"] && common["key-distributions"].IsSequence()) {
 				for (const auto& keyDistribution : common["key-distributions"]) {
 					if (keyDistribution.IsScalar()) {
-						m_keyDistributions.push_back(keyDistribution.as<std::string>());
+						commonSettings.keyDistributions.push_back(keyDistribution.as<std::string>());
 					}
 				}
 			}
-			else {
-				std::cerr << "key-distribution";
-			}
-		} else {
-			std::cerr << "common";
 		}
 	}
 
+	const std::vector<AlgorithmSettings>& getAlgorithms() const noexcept {
+		return m_algorithms;
+	}
+
+	const CommonSettings& getCommonSettings() const noexcept {
+		return m_commonSettings;
+	}
+
+	const std::vector<BenchmarkSettings>& getBenchmarks() const noexcept {
+		return m_benchmarks;
+	}
+
+	// Just for debug, remove later
 	void print() const {
-		std::cout << "m_config: " << m_config << std::endl;
-		std::cout << "m_outputFolder: " << m_outputFolder << std::endl;
-		std::cout << "m_totalBenchmarkIterations: " << m_totalBenchmarkIterations << std::endl;
-		std::cout << "m_unit: " << m_unit << std::endl;
-		std::cout << "m_mode: " << m_mode << std::endl;
-		std::cout << "m_secondsForEachIteration: " << m_secondsForEachIteration << std::endl;
+		std::cout << "m_outputFolder: " << m_commonSettings.outputFolder << std::endl;
+		std::cout << "m_totalBenchmarkIterations: " << m_commonSettings.totalBenchmarkIterations << std::endl;
+		std::cout << "m_unit: " << m_commonSettings.unit << std::endl;
+		std::cout << "m_mode: " << m_commonSettings.mode << std::endl;
+		std::cout << "m_secondsForEachIteration: " << m_commonSettings.secondsForEachIteration << std::endl;
 
 		std::cout << "m_numInitialActiveNodes: ";
-		for (const auto& num : m_numInitialActiveNodes) {
+		for (const auto& num : m_commonSettings.numInitialActiveNodes) {
 			std::cout << num << " ";
 		}
 		std::cout << std::endl;
 
 		std::cout << "m_hashFunctions: ";
-		for (const auto& hashFunction : m_hashFunctions) {
+		for (const auto& hashFunction : m_commonSettings.hashFunctions) {
 			std::cout << hashFunction << " ";
 		}
 		std::cout << std::endl;
 
 		std::cout << "m_keyDistributions: ";
-		for (const auto& keyDistribution : m_keyDistributions) {
+		for (const auto& keyDistribution : m_commonSettings.keyDistributions) {
 			std::cout << keyDistribution << " ";
 		}
 		std::cout << std::endl;
+
+		std::cout << "Algorithms:" << std::endl;
+		for (const auto& algorithm : m_algorithms) {
+			std::cout << "Algorithm name: " << algorithm.name << std::endl;
+			std::cout << "Arguments:" << std::endl;
+			for (const auto& arg : algorithm.args) {
+				std::cout << arg.first << ": " << arg.second << std::endl;
+			}
+			std::cout << std::endl;
+		}
+
+		std::cout << "Benchmarks:" << std::endl;
+		for (const auto& benchmark : m_benchmarks) {
+			std::cout << "Benchmark name: " << benchmark.name << std::endl;
+			std::cout << "Common Settings:" << std::endl;
+			std::cout << "m_outputFolder: " << benchmark.commonSettings.outputFolder << std::endl;
+			std::cout << "m_totalBenchmarkIterations: " << benchmark.commonSettings.totalBenchmarkIterations << std::endl;
+			std::cout << "m_unit: " << benchmark.commonSettings.unit << std::endl;
+			std::cout << "m_mode: " << benchmark.commonSettings.mode << std::endl;
+			std::cout << "m_secondsForEachIteration: " << benchmark.commonSettings.secondsForEachIteration << std::endl;
+
+			std::cout << "m_numInitialActiveNodes: ";
+			for (const auto& num : benchmark.commonSettings.numInitialActiveNodes) {
+				std::cout << num << " ";
+			}
+			std::cout << std::endl;
+
+			std::cout << "m_hashFunctions: ";
+			for (const auto& hashFunction : benchmark.commonSettings.hashFunctions) {
+				std::cout << hashFunction << " ";
+			}
+			std::cout << std::endl;
+
+			std::cout << "m_keyDistributions: ";
+			for (const auto& keyDistribution : benchmark.commonSettings.keyDistributions) {
+				std::cout << keyDistribution << " ";
+			}
+			std::cout << std::endl;
+
+			std::cout << "Arguments:" << std::endl;
+			for (const auto& arg : benchmark.args) {
+				std::cout << arg.first << ": " << arg.second << std::endl;
+			}
+			std::cout << std::endl;
+		}
 	}
+
 };
 
 #endif
