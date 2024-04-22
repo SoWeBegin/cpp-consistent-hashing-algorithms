@@ -253,7 +253,7 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
 
             if (current_algorithm.args.contains("capacity")) {
                 try {
-                    const uint32_t capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
+                    capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
                 } catch (const std::exception& e) {
                     std::cerr << "std::stoi exception: " << e.what() << '\n';
                 }
