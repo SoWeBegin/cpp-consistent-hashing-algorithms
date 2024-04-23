@@ -247,7 +247,6 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
         for (const auto& current_fraction : fractions) {
             const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
             
-            std::cout << "Current Algorithm Name: " << current_algorithm.name << '\n';
             const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
             uint32_t capacity = working_set;
 
@@ -262,10 +261,10 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
             if (current_algorithm.name == "null") {
                 // do nothing
             }
-            /* else if (current_algorithm.name == "baseline") {
-                 fmt::println("Allocating {} buckets of size {} bytes...", anchor_set,
+            else if (current_algorithm.name == "baseline") {
+                 fmt::println("Allocating {} buckets of size {} bytes...", capacity * working_set,
                      sizeof(uint32_t));
-                 uint32_t* bucket_status = new uint32_t[anchor_set]();
+                 uint32_t* bucket_status = new uint32_t[capacity * working_set]();
                  for (uint32_t i = 0; i < working_set; i++) {
                      bucket_status[i] = 1;
                  }
@@ -278,7 +277,7 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
                      }
                  }
                  delete[] bucket_status;
-             }*/
+             }
             else if (current_algorithm.name == "anchor") {
                 bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
                     num_removals, key_multiplier * working_set);
@@ -288,13 +287,11 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
                     "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
                     num_removals, key_multiplier * working_set);
             }
-            
             else if (current_algorithm.name == "mementoboost") {
                 bench<MementoEngine<boost::unordered_map>>(
                     "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
                     num_removals, key_multiplier * working_set);
             }
-            
             else if (current_algorithm.name == "mementostd") {
                 bench<MementoEngine<std::unordered_map>>(
                     "Memento<std::unordered_map>", full_file_path, capacity, working_set,

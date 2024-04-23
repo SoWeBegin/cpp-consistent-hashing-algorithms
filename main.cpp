@@ -24,7 +24,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
     // TODO:
     // For each specified benchmark, call the corresponding bench function. Do that for each specified algorithm
     
