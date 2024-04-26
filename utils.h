@@ -17,7 +17,11 @@
  */
 
 #include <stdint.h>
+#include <cstddef>
+#include <string>
 
 uint32_t crc32c_sse42_u64(uint64_t key, uint64_t seed);
+
+std::size_t parse_key_multiplier(const std::string& key_multiplier_str);
 
 #endif // UTILS_H

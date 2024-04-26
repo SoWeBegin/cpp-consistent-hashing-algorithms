@@ -7,12 +7,12 @@
 #include <type_traits>
 
 struct Monotonicity {
-	std::string hash_function;
-	std::string algorithm_name;
-	double fraction;
-	std::size_t keys;
-	std::string distribution;
-	std::size_t nodes;
+	std::string hash_function; // ok
+	std::string algorithm_name; // ok
+	double fraction; //ok
+	std::size_t keys; //ok
+	std::string distribution; //ok
+	std::size_t nodes; //ok
 	std::size_t keys_in_removed_nodes;
 	std::size_t keys_moved_from_removed_nodes;
 	std::size_t keys_moved_from_other_nodes;
@@ -68,11 +68,19 @@ private:
 	std::ofstream output_file;
 	std::filesystem::path m_file_path;
 
-public:
 	explicit CsvWriter(const std::filesystem::path& directory, const std::string& file_name)
 		: m_file_path{ directory / file_name }
 	{
 	}
+
+public:
+
+	static CsvWriter<T>& getInstance(const std::filesystem::path& directory, const std::string& file_name) {
+		static CsvWriter<T> instance(directory, file_name);
+		return instance;
+	}
+
+
 
 private:
 	template<typename U = T, typename std::enable_if<std::is_same<U, Monotonicity>::value>::type* = nullptr>

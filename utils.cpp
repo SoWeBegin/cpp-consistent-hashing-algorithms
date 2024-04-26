@@ -15,6 +15,8 @@
  */
 
 #include "utils.h"
+#include <sstream>
+
 
 uint32_t crc32c_sse42_u64(uint64_t key, uint64_t seed) {
 #ifdef __x86_64
@@ -27,4 +29,13 @@ uint32_t crc32c_sse42_u64(uint64_t key, uint64_t seed) {
                      : [key] "rm"(key));
 #endif
     return seed;
+}
+
+std::size_t parse_key_multiplier(const std::string& key_multiplier_str) {
+    std::istringstream iss(key_multiplier_str);
+    std::size_t keyMultiplier;
+    if (!(iss >> keyMultiplier)) {
+        return 100;
+    }
+    return keyMultiplier;
 }

@@ -35,6 +35,8 @@
 #include <vector>
 #include "dx/dxEngine.h"
 #include "YamlParser/YamlParser.h"
+#include "csvWriter.h"
+#include "utils.h"
 
  // monotonicity: Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
 
@@ -46,7 +48,7 @@
 template <typename Algorithm>
 inline void bench(const std::string& name, const std::string file_name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
-    uint32_t num_removals, uint32_t num_keys) {
+    uint32_t num_removals, uint32_t num_keys, Monotonicity& monotonicity) {
 
     Algorithm engine(anchor_set, working_set);
 
@@ -136,6 +138,8 @@ inline void bench(const std::string& name, const std::string file_name,
     }
 
     double m = (double)misplaced / (num_keys);
+    monotonicity.keys_in_removed_nodes = m;
+
 #ifdef USE_PCG32
     fmt::println(
         "{}: after removal % misplaced keys are {}% ({} keys out of {})\n", name,
@@ -210,19 +214,12 @@ std::vector<double> parse_fractions(const std::string& fractions_str) {
     return fractions;
 }
 
-std::size_t parse_key_multiplier(const std::string& key_multiplier_str) {
-    std::istringstream iss(key_multiplier_str);
-    std::size_t keyMultiplier;
-    if (!(iss >> keyMultiplier)) {
-        return 100;
-    }
-    return keyMultiplier;
-}
-
 
 inline int monotonicity(const std::string& output_path, std::size_t working_set, const std::string& hash_function,
     const std::string& key_distribution, const std::vector<AlgorithmSettings>& algorithms, 
     const std::unordered_map<std::string, std::string>& args) {
+
+    Monotonicity monotonicity; 
 
     // Further parsing args to obtain fractions and keyMultiplier (default value for keyMultiplier = 100)
     // We assume that the fractions key exists.
@@ -242,9 +239,15 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
     if (args.count("keyMultiplier") > 0) {
         key_multiplier = parse_key_multiplier(args.at("keyMultiplier"));
     }
+    monotonicity.distribution = key_distribution;
+    monotonicity.hash_function = hash_function;
+    monotonicity.nodes = working_set;
+    monotonicity.keys = key_multiplier * working_set;
 
     for (const auto& current_algorithm : algorithms) {
         for (const auto& current_fraction : fractions) {
+            monotonicity.algorithm_name = current_algorithm.name;
+            monotonicity.fraction = current_fraction;
             const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
             
             const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
@@ -280,44 +283,44 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
              }
             else if (current_algorithm.name == "anchor") {
                 bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "memento") {
                 bench<MementoEngine<boost::unordered_flat_map>>(
                     "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "mementoboost") {
                 bench<MementoEngine<boost::unordered_map>>(
                     "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "mementostd") {
                 bench<MementoEngine<std::unordered_map>>(
                     "Memento<std::unordered_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "mementogtl") {
                 bench<MementoEngine<gtl::flat_hash_map>>(
                     "Memento<std::gtl::flat_hash_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "mementomash") {
                 bench<MementoEngine<MashTable>>("Memento<MashTable>", full_file_path,
                     capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "jump") {
                 bench<JumpEngine>("JumpEngine", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "power") {
                 bench<PowerEngine>("PowerEngine", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else if (current_algorithm.name == "dx") {
                 bench<DxEngine>("DxEngine", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set);
+                    num_removals, key_multiplier * working_set, monotonicity);
             }
             else {
                 fmt::println("Unknown algorithm {}", current_algorithm.name);
@@ -325,6 +328,7 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
             }
         }
     }
-
+    auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
+    monotonicity_writer.add(monotonicity);
     return 0;
 }
