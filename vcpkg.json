@@ -10,6 +10,7 @@
     "pcg",
     "gtl",
     "boost-dynamic-bitset",
-    "yaml-cpp"
+    "yaml-cpp",
+    "gtest"
   ]
 }

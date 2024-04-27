@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
                         //    current_key_distribution, algorithms, current_benchmark.args);
                     } else if (current_benchmark.name == "lookup-time") {
                         speed_test(commonSettings.outputFolder, current_working_set, current_hash_function,
-                            current_key_distribution, algorithms, current_benchmark.args);
+                            current_key_distribution, algorithms, current_benchmark.args, current_benchmark.commonSettings);
                     }
                 }
             }

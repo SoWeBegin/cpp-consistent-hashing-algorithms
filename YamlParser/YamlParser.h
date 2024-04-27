@@ -16,12 +16,13 @@ struct AlgorithmSettings final {
 	std::unordered_map<std::string, std::string> args; // [argumentName][argumentValue]
 };
 
+// specified values are default ones
 struct CommonSettings final {
-	std::string outputFolder;
-	std::size_t totalBenchmarkIterations;
-	std::string unit;
-	std::string mode;
-	std::size_t secondsForEachIteration;
+	std::string outputFolder = "/tmp";
+	std::size_t totalBenchmarkIterations = 5;
+	std::string unit = "NANOSECONDS";
+	std::string mode = "AverageTime";
+	std::size_t secondsForEachIteration = 5;
 	std::vector<std::size_t> numInitialActiveNodes;
 	std::vector<std::string> hashFunctions;
 	std::vector<std::string> keyDistributions;
@@ -60,8 +61,7 @@ public:
 			parseCommon(m_config["common"], m_commonSettings);
 			parseAlgorithms(m_config["algorithms"]);
 			parseBenchmarks(m_config["benchmarks"]);
-		}
-		else {
+		} else {
 			std::cerr << "[YamlParser::YamlParser]: Error loading Yaml file (" << filePath << ")!\n";
 		}
 	}
@@ -111,7 +111,7 @@ public:
 					if (algorithm["args"]) {
 						for (const auto& pair : algorithm["args"]) { // [key][value]
 							const std::string argName = pair.first.as<std::string>();
-							const std::string argValue = pair.second.as<std::string>(); 
+							const std::string argValue = pair.second.as<std::string>();
 							algorithmSettings.args[argName] = argValue;
 						}
 					}
@@ -135,19 +135,38 @@ public:
 			if (common["time"]) {
 				auto& time = common["time"];
 				if (time["unit"]) {
-					commonSettings.unit = time["unit"].as<std::string>();
-					if (time["mode"]) {
-						commonSettings.mode = time["mode"].as<std::string>();
-						if (time["execution"]) {
-							commonSettings.secondsForEachIteration = time["execution"].as<std::size_t>();
-						}
+					const std::string time_unit = time["unit"].as<std::string>();
+					if (time_unit != "SECONDS" && time_unit != "MILLISECONDS"
+						&& time_unit != "MICROSECONDS" && time_unit != "NANOSECONDS") {
+						fmt::println("time-unit has a wrong value in the yaml file. Proceeding with default time-unit = NANOSECONDS");
+					} else {
+						commonSettings.unit = time_unit;
 					}
+				}
+				if (time["mode"]) {
+					const std::string time_mode = time["mode"].as<std::string>();
+					if (time_mode != "AverageTime" && time_mode != "SampleTime" && time_mode != "SingleShotTime"
+						&& time_mode != "Throughput" && time_mode != "ALL") {
+						fmt::println("time-mode has a wrong value in the yaml file. Proceeding with default time-mode = AverageTime");
+					} else {
+						commonSettings.mode = time_mode;
+					}
+				}
+				if (time["execution"]) {
+					commonSettings.secondsForEachIteration = time["execution"].as<std::size_t>();
 				}
 			}
 			if (common["init-nodes"] && common["init-nodes"].IsSequence()) {
+				std::size_t total_iter = 0;
 				for (const auto& node : common["init-nodes"]) {
 					commonSettings.numInitialActiveNodes.push_back(node.as<std::size_t>());
+					++total_iter;
 				}
+				if (!total_iter) {
+					throw std::invalid_argument("init-nodes must have at least one value");
+				}
+			} else {
+				throw std::invalid_argument("init-nodes must be specified mandatorily in the yaml file");
 			}
 			if (common["hash-functions"] && common["hash-functions"].IsSequence()) {
 				for (const auto& hash_function : common["hash-functions"]) {
@@ -157,11 +176,16 @@ public:
 				}
 			}
 			if (common["key-distributions"] && common["key-distributions"].IsSequence()) {
+				std::size_t total_iter = 0;
 				for (const auto& keyDistribution : common["key-distributions"]) {
-					if (keyDistribution.IsScalar()) {
-						commonSettings.keyDistributions.push_back(keyDistribution.as<std::string>());
-					}
+					commonSettings.keyDistributions.push_back(keyDistribution.as<std::string>());
+					++total_iter;
 				}
+				if (!total_iter) {
+					throw std::invalid_argument("key-distributions must have at least one value specified in the yaml file");
+				}
+			} else {
+				throw std::invalid_argument("no key-distribution key found in the yaml file, which is mandatory");
 			}
 		}
 	}

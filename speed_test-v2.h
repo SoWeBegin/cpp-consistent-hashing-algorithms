@@ -210,7 +210,7 @@ double parse_removal_rate(const std::string& removal_rate_str) {
         
 inline int speed_test(const std::string& output_path, std::size_t working_set, const std::string& hash_function,
     const std::string& key_distribution, const std::vector<AlgorithmSettings>& algorithms,
-    const std::unordered_map<std::string, std::string>& args) {
+    const std::unordered_map<std::string, std::string>& args, const CommonSettings& common_settings) {
        
     // Further parse "removal-rate", aka initial nodes to remove.
     double removal_rate{}; // default value
@@ -238,8 +238,14 @@ inline int speed_test(const std::string& output_path, std::size_t working_set, c
     lookup_time.param_distribution = key_distribution;
     lookup_time.param_function = hash_function;
     lookup_time.param_init_nodes = working_set;
+    lookup_time.mode = common_settings.mode;
+    lookup_time.unit = common_settings.unit;
+    lookup_time.param_benchmark = "lookuptime";
+    lookup_time.benchmark = "speed_test=>bench";
 
     for (const auto& current_algorithm : algorithms) {
+        lookup_time.param_algorithm = current_algorithm.name;
+
         const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
         const uint32_t num_removals = static_cast<uint32_t>(removal_rate * working_set);
         uint32_t capacity = 10 * working_set; // default capacity = 10

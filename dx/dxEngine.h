@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Amos Brocco.
+ * Copyright (c) 2023 Amos Brocco, Tony Kolarek, Tatiana Dal Busco.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

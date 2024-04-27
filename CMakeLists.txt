@@ -43,7 +43,7 @@ add_executable(cpp-consistent-hashing main.cpp
     power/powerengine.h
     utils.h
     utils.cpp
- "speed_test-v2.h")
+ "speed_test-v2.h" "unit_tests/YamlParserTest.cc")
 
 if(WITH_PCG32)
     target_include_directories(cpp-consistent-hashing PRIVATE ${PCG_INCLUDE_DIRS})
@@ -54,8 +54,30 @@ target_include_directories(cpp-consistent-hashing PRIVATE ${GTL_INCLUDE_DIRS})
 target_link_libraries(cpp-consistent-hashing PRIVATE xxHash::xxhash fmt::fmt cxxopts::cxxopts ${YAML_CPP_LIBRARIES})
 
 include(GNUInstallDirs)
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
 install(TARGETS cpp-consistent-hashing
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+enable_testing()
+
+add_executable(
+  YamlParserTest
+  unit_tests/YamlParserTest.cc
+)
+
+target_link_libraries(
+  YamlParserTest
+  GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(YamlParserTest)
