@@ -43,7 +43,7 @@ add_executable(cpp-consistent-hashing main.cpp
     power/powerengine.h
     utils.h
     utils.cpp
-)
+ "speed_test-v2.h")
 
 if(WITH_PCG32)
     target_include_directories(cpp-consistent-hashing PRIVATE ${PCG_INCLUDE_DIRS})

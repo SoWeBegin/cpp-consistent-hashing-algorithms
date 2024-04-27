@@ -26,7 +26,7 @@
 class DxEngine final {
 public:
     explicit DxEngine(uint32_t capacity, uint32_t size)
-        : m_size(size), m_capacity(size * capacity) {
+        : m_size(size), m_capacity(capacity) {
         m_failed.resize(m_capacity);
         m_failed.set(m_size, m_capacity - m_size, true);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Amos Brocco.
+ * Copyright (c) 2023 Amos Brocco, Tony Kolarek, Tatiana Dal Busco
  * Adapted from cpp-anchorhash Copyright (c) 2020 anchorhash (MIT License)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifndef MONOTONICITY_BENCH_H
+#define MONOTONICITY_BENCH_H
+
 #include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered_map.hpp>
 #include <cxxopts.hpp>
@@ -77,7 +81,6 @@ inline void bench(const std::string& name, const std::string file_name,
 
     boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket;
     std::ofstream results_file;
-    std::cout << "FILENAME: " << file_name << "\n\n";
     results_file.open("anchor.txt", std::ofstream::out | std::ofstream::app);
 
     // Determine the current key bucket assigment
@@ -222,7 +225,10 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
     Monotonicity monotonicity; 
 
     // Further parsing args to obtain fractions and keyMultiplier (default value for keyMultiplier = 100)
-    // We assume that the fractions key exists.
+    if (!args.count("fractions")) {
+        fmt::println("no fractions key found in the yaml file.");
+        return 1;
+    }
     std::vector<double> fractions = parse_fractions(args.at("fractions"));
 
     if (fractions.size() < 1) {
@@ -251,7 +257,7 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
             const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
             
             const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
-            uint32_t capacity = working_set;
+            uint32_t capacity = 10 * working_set; // default capacity = 10
 
             if (current_algorithm.args.contains("capacity")) {
                 try {
@@ -263,11 +269,12 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
 
             if (current_algorithm.name == "null") {
                 // do nothing
+                continue;
             }
             else if (current_algorithm.name == "baseline") {
-                 fmt::println("Allocating {} buckets of size {} bytes...", capacity * working_set,
+                 fmt::println("Allocating {} buckets of size {} bytes...", capacity,
                      sizeof(uint32_t));
-                 uint32_t* bucket_status = new uint32_t[capacity * working_set]();
+                 uint32_t* bucket_status = new uint32_t[capacity]();
                  for (uint32_t i = 0; i < working_set; i++) {
                      bucket_status[i] = 1;
                  }
@@ -332,3 +339,5 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
     monotonicity_writer.add(monotonicity);
     return 0;
 }
+
+#endif
