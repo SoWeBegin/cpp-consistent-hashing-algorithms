@@ -8,6 +8,7 @@
 #include <filesystem>
 #include "yaml-cpp/parser.h"
 #include "yaml-cpp/yaml.h"
+#include <fmt/core.h>
 
 #include <iostream>
 

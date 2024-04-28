@@ -74,13 +74,10 @@ private:
 	}
 
 public:
-
 	static CsvWriter<T>& getInstance(const std::filesystem::path& directory, const std::string& file_name) {
 		static CsvWriter<T> instance(directory, file_name);
 		return instance;
 	}
-
-
 
 private:
 	template<typename U = T, typename std::enable_if<std::is_same<U, Monotonicity>::value>::type* = nullptr>
@@ -177,6 +174,7 @@ public:
 				<< t.nodes_changed_after_resize_percentage << '\n';
 		}
 		m_cache.clear();
+		output_file.close();
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, Balance>::value>::type* = nullptr>
@@ -199,6 +197,7 @@ public:
 				<< t.max_percentage << '\n';
 		}
 		m_cache.clear();
+		output_file.close();
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, LookupTime>::value>::type* = nullptr>
@@ -221,6 +220,8 @@ public:
 				<< t.param_function << ','
 				<< t.param_init_nodes << "\n";
 		}
+		m_cache.clear();
+		output_file.close();
 	}
 
 	constexpr void add(const T& t) {
