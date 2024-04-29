@@ -46,6 +46,9 @@ add_executable(cpp-consistent-hashing main.cpp
     utils.cpp
     speed_test-v2.h
     YamlParser/YamlParser.h
+    build/template.yaml
+    build/test.yaml
+
 )
 
 enable_testing()
