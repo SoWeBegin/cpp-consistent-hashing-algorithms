@@ -1,0 +1,8 @@
+Package: boost-assert
+Version: 1.83.0
+Depends: boost-config, boost-vcpkg-helpers
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 022eab48676e2ea0c675e22861527c2d57b676542c17a16f56402191e957702e
+Description: Boost assert module
+Status: install ok installed

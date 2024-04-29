@@ -45,10 +45,27 @@ add_executable(cpp-consistent-hashing main.cpp
     utils.h
     utils.cpp
     speed_test-v2.h
+    YamlParser/YamlParser.h
 )
 
 enable_testing()
-add_executable(yaml-parser-tests test_yaml_parser.cpp)
+add_executable(yaml-parser-tests unit_tests/test_yaml_parser.cpp
+    monotonicity-v2.h
+    vcpkg.json
+    memento/memento.h
+    memento/mementoengine.h
+    anchor/AnchorHashQre.cpp
+    anchor/AnchorHashQre.hpp
+    anchor/misc/crc32c_sse42_u64.h
+    anchor/anchorengine.h
+    memento/mashtable.h
+    dx/dxEngine.h
+    jump/jumpengine.h
+    power/powerengine.h
+    utils.h
+    utils.cpp
+    speed_test-v2.h
+    YamlParser/YamlParser.h)
 
 if(WITH_PCG32)
     target_include_directories(cpp-consistent-hashing PRIVATE ${PCG_INCLUDE_DIRS})
@@ -66,6 +83,9 @@ target_link_libraries(cpp-consistent-hashing PRIVATE
 target_link_libraries(yaml-parser-tests PRIVATE
     GTest::gtest_main
     GTest::gtest
+    xxHash::xxhash 
+    fmt::fmt 
+    cxxopts::cxxopts 
     ${YAML_CPP_LIBRARIES}
 )
 include(GoogleTest)

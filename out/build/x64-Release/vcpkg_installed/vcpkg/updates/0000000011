@@ -1,0 +1,8 @@
+Package: boost-static-assert
+Version: 1.83.0
+Depends: boost-config, boost-vcpkg-helpers
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 6706f536a9d8dd1c9f81a7025b5585d80e3cf8b833dff5320638cd8977b0a0f4
+Description: Boost static_assert module
+Status: install ok installed

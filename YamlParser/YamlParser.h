@@ -10,6 +10,7 @@
 #include "yaml-cpp/yaml.h"
 #include <fmt/core.h>
 
+
 #include <iostream>
 
 struct AlgorithmSettings final {
@@ -43,17 +44,18 @@ private:
 	std::vector<BenchmarkSettings> m_benchmarks;
 
 public:
+	YamlParser() = default;
+
 	explicit YamlParser(const std::filesystem::path& directory, const std::string& fileName) {
-		const std::filesystem::path filePath = "template.yaml";//directory / fileName;
+		const std::filesystem::path filePath = fileName;//directory / fileName;
 
 		if (!std::filesystem::exists(filePath)) {
-			std::cerr << "[YamlParser::YamlParser]: Yaml file (" << filePath << ") not found!\n";
-			return;
+			throw std::invalid_argument("[YamlParser::YamlParser]: Yaml file not found!\n");
 		}
 
 		std::ifstream file(filePath);
 		if (!file.is_open()) {
-			std::cerr << "[YamlParser::YamlParser]: Unable to open file (" << filePath << ")!\n";
+			throw std::invalid_argument("[YamlParser::YamlParser]: Unable to open yaml file!\n");
 			return;
 		}
 
@@ -63,7 +65,7 @@ public:
 			parseAlgorithms(m_config["algorithms"]);
 			parseBenchmarks(m_config["benchmarks"]);
 		} else {
-			std::cerr << "[YamlParser::YamlParser]: Error loading Yaml file (" << filePath << ")!\n";
+			throw std::runtime_error("[YamlParser::YamlParser]: Error loading Yaml file!\n");
 		}
 	}
 
@@ -158,16 +160,19 @@ public:
 				}
 			}
 			if (common["init-nodes"] && common["init-nodes"].IsSequence()) {
+				std::cout << "in if\n";
 				std::size_t total_iter = 0;
 				for (const auto& node : common["init-nodes"]) {
 					commonSettings.numInitialActiveNodes.push_back(node.as<std::size_t>());
 					++total_iter;
 				}
 				if (!total_iter) {
-					throw std::invalid_argument("init-nodes must have at least one value");
+					throw std::runtime_error("init-nodes must have at least one value");
 				}
-			} else {
-				throw std::invalid_argument("init-nodes must be specified mandatorily in the yaml file");
+			} 
+			else {
+				std::cout << "in else\n";
+				//throw std::runtime_error("init-nodes must be specified mandatorily in the yaml file");
 			}
 			if (common["hash-functions"] && common["hash-functions"].IsSequence()) {
 				for (const auto& hash_function : common["hash-functions"]) {
