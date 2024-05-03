@@ -1,4 +1,29 @@
 /*
+
+unordered_map<key,bucket> initial_assignment;
+
+random_key_list = generate_key_list(num_keys)
+
+for key in random_key_list:
+    initial_assignment[key] = get_bucket(key)
+
+
+nodes[size ] = {1...}
+for n in range(0, num_removals):
+    remove random node i
+    nodes[i] = 0
+
+for key in random_key_list :
+    b = get_bucket(key)
+    original_b = initial_assignment[key]
+    if b != original_b && nodes[original_b] == 0;
+# nodo rimosso-> OK
+
+
+*/
+
+
+/*
  * Copyright (c) 2023 Amos Brocco, Tony Kolarek, Tatiana Dal Busco
  * Adapted from cpp-anchorhash Copyright (c) 2020 anchorhash (MIT License)
  *
@@ -18,6 +43,7 @@
 #ifndef MONOTONICITY_BENCH_H
 #define MONOTONICITY_BENCH_H
 
+#include <algorithm>
 #include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered_map.hpp>
 #include <cxxopts.hpp>
@@ -47,12 +73,11 @@
   /*
    * Benchmark routine
    */
-
-
 template <typename Algorithm>
 inline void bench(const std::string& name, const std::string file_name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
-    uint32_t num_removals, uint32_t num_keys, Monotonicity& monotonicity) {
+    uint32_t num_removals, uint32_t num_keys, double current_fraction, 
+    Monotonicity& monotonicity) {
 
     Algorithm engine(anchor_set, working_set);
 
@@ -64,24 +89,9 @@ inline void bench(const std::string& name, const std::string file_name,
         bucket_status[i] = 1;
     }
 
-    // simulate num_removals removals
-    uint32_t i = 0;
-    while (i < num_removals) {
-#ifdef USE_PCG32
-        uint32_t removed = rng() % working_set;
-#else
-        uint32_t removed = rand() % working_set;
-#endif
-        if (bucket_status[removed] == 1) {
-            auto rnode = engine.removeBucket(removed);
-            bucket_status[rnode] = 0; // Remove the actually removed node
-            i++;
-        }
-    }
-
+    // 1. Assign buckets and check keys_per_node
     boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket;
-    std::ofstream results_file;
-    results_file.open("anchor.txt", std::ofstream::out | std::ofstream::app);
+    std::vector<uint32_t> keys_per_node(working_set);
 
     // Determine the current key bucket assigment
     for (uint32_t i = 0; i < num_keys;) {
@@ -96,6 +106,7 @@ inline void bench(const std::string& name, const std::string file_name,
             continue;
         auto target = engine.getBucketCRC32c(a, b);
         bucket[{a, b}] = target;
+        ++keys_per_node[target];
         // Verify that we got a working bucket
         if (!bucket_status[target]) {
             throw "Crazy bug";
@@ -104,6 +115,49 @@ inline void bench(const std::string& name, const std::string file_name,
     }
     fmt::println("Done determining initial assignment of {} unique keys",
         num_keys);
+
+    // map<hiave, valore>
+    // array per stato nodo
+    // movedFrom
+
+    int smallest_removed_idx = static_cast<int>((1 - current_fraction) * working_set);
+    smallest_removed_idx = std::max(smallest_removed_idx, 0);
+    smallest_removed_idx = std::min(smallest_removed_idx, static_cast<int>(keys_per_node.size()));
+    int sum = std::accumulate(keys_per_node.begin() + smallest_removed_idx, keys_per_node.end(), 0);
+    monotonicity.keys_in_removed_nodes = sum;
+
+    // 2. Remove num_removals working nodes, update moved_from
+    // simulate num_removals removals of nodes
+    uint32_t i = 0;
+    while (i < num_removals) {
+#ifdef USE_PCG32
+        uint32_t removed = rng() % working_set;
+#else
+        uint32_t removed = rand() % working_set;
+#endif
+        if (bucket_status[removed] == 1) {
+            auto rnode = engine.removeBucket(removed);
+            bucket_status[rnode] = 0; // Remove the actually removed 
+            if (!bucket_status[rnode]) {
+                throw "Crazy bug";
+            }
+            i++;
+        }
+    }
+
+    // 3. Restore num_removals nodes, update moved_to
+    for (uint32_t i = 0; i < num_removals; ++i) {
+        uint32_t added_node = engine.addBucket(); // Riaggiungi un nodo
+        bucket_status[added_node] = 1; // Imposta lo stato del nodo come attivo
+        // Riassegna le chiavi ai bucket appena aggiunti
+        for (auto& entry : bucket) {
+            auto key = entry.first;
+            auto target = engine.getBucketCRC32c(key.first, key.second);
+            if (target == added_node) {
+                ++keys_per_node[added_node]; // Incrementa il numero di chiavi assegnate al nodo
+            }
+        }
+    }
 
     // Remove a random working node
     uint32_t removed{ 0 };
@@ -141,21 +195,14 @@ inline void bench(const std::string& name, const std::string file_name,
     }
 
     double m = (double)misplaced / (num_keys);
-    monotonicity.keys_in_removed_nodes = m;
 
 #ifdef USE_PCG32
     fmt::println(
         "{}: after removal % misplaced keys are {}% ({} keys out of {})\n", name,
         m * 100, misplaced, num_keys);
-    results_file << name << ": "
-        << "MisplacedRem: " << misplaced << "\t" << num_keys << "\t" << m
-        << "\t" << m << "\tPCG32\n";
 #else
     fmt::println("{}: after removal misplaced keys are {}% ({} keys out of {})",
         name, m * 100, misplaced, num_keys);
-    results_file << name << ": "
-        << "MisplacedRem: " << misplaced << "\t" << num_keys << "\t" << m
-        << "\t" << m << "\trand()\n";
 #endif
 
     misplaced = 0;
@@ -184,53 +231,26 @@ inline void bench(const std::string& name, const std::string file_name,
     fmt::println(
         "{}: after adding back % misplaced keys are {}% ({} keys out of {})\n",
         name, m * 100, misplaced, num_keys);
-    results_file << name << ": "
-        << "MisplacedAdd: " << misplaced << "\t" << num_keys << "\t" << m
-        << "\t" << m << "\tPCG32\n";
 #else
     fmt::println(
         "{}: after adding back misplaced keys are {}% ({} keys out of {})", name,
         m * 100, misplaced, num_keys);
-    results_file << name << ": "
-        << "MisplacedAdd: " << misplaced << "\t" << num_keys << "\t" << m
-        << "\t" << m << "\trand()\n";
 #endif
 
     ////////////////////////////////////////////////////////////////////
-
-    results_file.close();
 
     delete[] bucket_status;
 }
 
 
-std::vector<double> parse_fractions(const std::string& fractions_str) {
-    std::vector<double> fractions;
-    std::istringstream iss(fractions_str);
+inline int monotonicity(const std::string& output_path, const BenchmarkSettings& current_benchmark,
+    const std::vector<AlgorithmSettings>& algorithms) {
 
-    iss.ignore(1);
-    double fraction;
-    while (iss >> fraction) {
-        fractions.push_back(fraction);
-        iss.ignore();
-    }
-    return fractions;
-}
-
-
-inline int monotonicity(const std::string& output_path, std::size_t working_set, const std::string& hash_function,
-    const std::string& key_distribution, const std::vector<AlgorithmSettings>& algorithms, 
-    const std::unordered_map<std::string, std::string>& args) {
-
-    Monotonicity monotonicity; 
-
-    // Further parsing args to obtain fractions and keyMultiplier (default value for keyMultiplier = 100)
-    if (!args.count("fractions")) {
+    const auto& fractions = parse_fractions(current_benchmark.args.at("fractions"));
+    if (!current_benchmark.args.count("fractions")) {
         fmt::println("no fractions key found in the yaml file.");
         return 1;
     }
-    std::vector<double> fractions = parse_fractions(args.at("fractions"));
-
     if (fractions.size() < 1) {
         fmt::println("fractions must have at least 1 value");
         return 1;
@@ -242,101 +262,120 @@ inline int monotonicity(const std::string& output_path, std::size_t working_set,
     }
 
     std::size_t key_multiplier = 100;
-    if (args.count("keyMultiplier") > 0) {
-        key_multiplier = parse_key_multiplier(args.at("keyMultiplier"));
+    if (current_benchmark.args.count("keyMultiplier") > 0) {
+        key_multiplier = parse_key_multiplier(current_benchmark.args.at("keyMultiplier"));
     }
-    monotonicity.distribution = key_distribution;
-    monotonicity.hash_function = hash_function;
-    monotonicity.nodes = working_set;
-    monotonicity.keys = key_multiplier * working_set;
 
-    for (const auto& current_algorithm : algorithms) {
-        for (const auto& current_fraction : fractions) {
-            monotonicity.algorithm_name = current_algorithm.name;
-            monotonicity.fraction = current_fraction;
-            const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
-            
-            const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
-            uint32_t capacity = 10 * working_set; // default capacity = 10
+    for (double current_fraction : fractions) {
+        for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) { // Done for all benchmarks
+            for (const auto& current_algorithm : algorithms) {
+                for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
+                    for (const auto& working_set : current_benchmark.commonSettings.numInitialActiveNodes) {
+                        Monotonicity monotonicity;
+                        monotonicity.distribution = key_distribution;
+                        monotonicity.hash_function = hash_function;
+                        monotonicity.nodes = working_set;
+                        monotonicity.keys = key_multiplier * working_set;
+                        monotonicity.algorithm_name = current_algorithm.name;
+                        monotonicity.fraction = current_fraction;
 
-            if (current_algorithm.args.contains("capacity")) {
-                try {
-                    capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-                } catch (const std::exception& e) {
-                    std::cerr << "std::stoi exception: " << e.what() << '\n';
+                        auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
+
+                        const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
+
+                        const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
+                        uint32_t capacity = 10 * working_set; // default capacity = 10
+
+                        if (current_algorithm.args.contains("capacity")) {
+                            try {
+                                capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
+                            }
+                            catch (const std::exception& e) {
+                                std::cerr << "std::stoi exception: " << e.what() << '\n';
+                            }
+                        }
+
+                        if (current_algorithm.name == "null") {
+                            // do nothing
+                            return 0;
+                        }
+                        else if (current_algorithm.name == "baseline") {
+                            fmt::println("Allocating {} buckets of size {} bytes...", capacity,
+                                sizeof(uint32_t));
+                            uint32_t* bucket_status = new uint32_t[capacity]();
+                            for (uint32_t i = 0; i < working_set; i++) {
+                                bucket_status[i] = 1;
+                            }
+                            uint32_t i = 0;
+                            while (i < num_removals) {
+                                uint32_t removed = rand() % working_set;
+                                if (bucket_status[removed] == 1) {
+                                    bucket_status[removed] = 0;
+                                    i++;
+                                }
+                            }
+                            delete[] bucket_status;
+                        }
+                        else if (current_algorithm.name == "anchor") {
+                            bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "memento") {
+                            bench<MementoEngine<boost::unordered_flat_map>>(
+                                "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "mementoboost") {
+                            bench<MementoEngine<boost::unordered_map>>(
+                                "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "mementostd") {
+                            bench<MementoEngine<std::unordered_map>>(
+                                "Memento<std::unordered_map>", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "mementogtl") {
+                            bench<MementoEngine<gtl::flat_hash_map>>(
+                                "Memento<std::gtl::flat_hash_map>", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "mementomash") {
+                            bench<MementoEngine<MashTable>>("Memento<MashTable>", full_file_path,
+                                capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "jump") {
+                            bench<JumpEngine>("JumpEngine", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "power") {
+                            bench<PowerEngine>("PowerEngine", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else if (current_algorithm.name == "dx") {
+                            bench<DxEngine>("DxEngine", full_file_path, capacity, working_set,
+                                num_removals, key_multiplier * working_set, current_fraction,
+                                monotonicity);
+                        }
+                        else {
+                            fmt::println("Unknown algorithm {}", current_algorithm.name);
+                            //return 2;
+                        }
+                        monotonicity_writer.add(monotonicity);
+                    }
                 }
-            }
-
-            if (current_algorithm.name == "null") {
-                // do nothing
-                continue;
-            }
-            else if (current_algorithm.name == "baseline") {
-                 fmt::println("Allocating {} buckets of size {} bytes...", capacity,
-                     sizeof(uint32_t));
-                 uint32_t* bucket_status = new uint32_t[capacity]();
-                 for (uint32_t i = 0; i < working_set; i++) {
-                     bucket_status[i] = 1;
-                 }
-                 uint32_t i = 0;
-                 while (i < num_removals) {
-                     uint32_t removed = rand() % working_set;
-                     if (bucket_status[removed] == 1) {
-                         bucket_status[removed] = 0;
-                         i++;
-                     }
-                 }
-                 delete[] bucket_status;
-             }
-            else if (current_algorithm.name == "anchor") {
-                bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "memento") {
-                bench<MementoEngine<boost::unordered_flat_map>>(
-                    "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "mementoboost") {
-                bench<MementoEngine<boost::unordered_map>>(
-                    "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "mementostd") {
-                bench<MementoEngine<std::unordered_map>>(
-                    "Memento<std::unordered_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "mementogtl") {
-                bench<MementoEngine<gtl::flat_hash_map>>(
-                    "Memento<std::gtl::flat_hash_map>", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "mementomash") {
-                bench<MementoEngine<MashTable>>("Memento<MashTable>", full_file_path,
-                    capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "jump") {
-                bench<JumpEngine>("JumpEngine", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "power") {
-                bench<PowerEngine>("PowerEngine", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else if (current_algorithm.name == "dx") {
-                bench<DxEngine>("DxEngine", full_file_path, capacity, working_set,
-                    num_removals, key_multiplier * working_set, monotonicity);
-            }
-            else {
-                fmt::println("Unknown algorithm {}", current_algorithm.name);
-                //return 2;
             }
         }
     }
-    auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
-    monotonicity_writer.add(monotonicity);
     return 0;
 }
 

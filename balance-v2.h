@@ -37,12 +37,13 @@
 #include "dx/dxEngine.h"
 #include "csvWriter.h"
 #include "utils.h"
+#include "YamlParser/YamlParser.h"
 
  /*
   * Benchmark routine
   */
 template <typename Algorithm>
-inline void bench(const std::string& name, const std::string file_name,
+inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, Balance& balance) {
 #ifdef USE_PCG32
@@ -54,10 +55,10 @@ inline void bench(const std::string& name, const std::string file_name,
     Algorithm engine(anchor_set, working_set);
 
     // for lb
-    uint32_t* anchor_ansorbed_keys = new uint32_t[anchor_set]();
+    uint32_t* anchor_ansorbed_keys = new uint32_t[anchor_set]{};
 
     // random removals
-    uint32_t* bucket_status = new uint32_t[anchor_set]();
+    uint32_t* bucket_status = new uint32_t[anchor_set]{};
 
     for (uint32_t i = 0; i < working_set; i++) {
         bucket_status[i] = 1;
@@ -77,9 +78,6 @@ inline void bench(const std::string& name, const std::string file_name,
         }
     }
 
-    std::ofstream results_file;
-    results_file.open(name, std::ofstream::out | std::ofstream::app);
-
     ////////////////////////////////////////////////////////////////////
     for (uint32_t i = 0; i < num_keys; ++i) {
 #ifdef USE_PCG32
@@ -93,7 +91,10 @@ inline void bench(const std::string& name, const std::string file_name,
     double mean = (double)num_keys / (working_set - num_removals);
 
     double lb = 0;
+
+
     for (uint32_t i = 0; i < anchor_set; i++) {
+        double value = anchor_ansorbed_keys[i];
 
         if (bucket_status[i]) {
 
@@ -114,28 +115,23 @@ inline void bench(const std::string& name, const std::string file_name,
     // print lb res
 #ifdef USE_PCG32
     fmt::println("{}: LB is {}\n", name, lb);
-    results_file << name << ": "
-        << "Balance: " << lb << "\tPCG32\n";
+   
 #else
     fmt::println("{}: LB is {}\n", name, lb);
-    results_file << name << ": "
-        << "Balance: " << lb << "\trand()\n";
+    
 #endif
 
     ////////////////////////////////////////////////////////////////////
 
-    results_file.close();
-
     delete[] bucket_status;
     delete[] anchor_ansorbed_keys;
-
-    return 0;
 }
 
 
-inline int balance(const std::string& output_path, std::size_t working_set, const std::string& hash_function,
-    const std::string& key_distribution, const std::vector<AlgorithmSettings>& algorithms,
-    const std::unordered_map<std::string, std::string>& args) {
+inline int balance(const std::string& output_path, const AlgorithmSettings& current_algorithm,
+    std::size_t working_set, const std::string& hash_function,
+    const std::string& key_distribution, const std::unordered_map<std::string, std::string>& args,
+    std::size_t total_iterations) {
 
     std::size_t key_multiplier = 100;
     if (args.count("keyMultiplier") > 0) {
@@ -147,24 +143,23 @@ inline int balance(const std::string& output_path, std::size_t working_set, cons
     balance.hash_function = hash_function;
     balance.nodes = working_set;
     balance.keys = key_multiplier * working_set;
-   
-    srand(time(NULL));
-  
-    for (const auto& current_algorithm : algorithms) {
-        const std::string filename = output_path + "/" + current_algorithm.name + ".txt";
-        const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
-        uint32_t capacity = 10 * working_set; // default capacity = 10
+    balance.expected = balance.keys / working_set;
 
-        if (current_algorithm.args.contains("capacity")) {
-            try {
-                capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-            }
-            catch (const std::exception& e) {
-                std::cerr << "std::stoi exception: " << e.what() << '\n';
-            }
+    uint32_t capacity = 10 * working_set; // default capacity = 10
+    if (current_algorithm.args.contains("capacity")) {
+        try {
+            capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
         }
+        catch (const std::exception& e) {
+            std::cerr << "std::stoi exception: " << e.what() << '\n';
+        }
+    }
+
+    int num_removals = (int)((double)working_set/50.);
+
+    for (std::size_t i = 0; i < 3; ++i) {
         if (current_algorithm.name == "null") {
-            // do nothing
+            return 0;
         }
         else if (current_algorithm.name == "baseline") {
             fmt::println("Allocating {} buckets of size {} bytes...", capacity,
@@ -184,51 +179,50 @@ inline int balance(const std::string& output_path, std::size_t working_set, cons
             delete[] bucket_status;
         }
         else if (current_algorithm.name == "anchor") {
-            bench<AnchorEngine>("Anchor", filename, capacity, working_set,
+            bench<AnchorEngine>("Anchor", capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "memento") {
             bench<MementoEngine<boost::unordered_flat_map>>(
-                "Memento<boost::unordered_flat_map>", filename, capacity, working_set,
+                "Memento<boost::unordered_flat_map>", capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "mementoboost") {
             bench<MementoEngine<boost::unordered_map>>(
-                "Memento<boost::unordered_map>", filename, capacity, working_set,
+                "Memento<boost::unordered_map>", capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "mementostd") {
             bench<MementoEngine<std::unordered_map>>(
-                "Memento<std::unordered_map>", filename, capacity, working_set,
+                "Memento<std::unordered_map>", capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "mementogtl") {
             bench<MementoEngine<gtl::flat_hash_map>>(
-                "Memento<std::gtl::flat_hash_map>", filename, capacity, working_set,
+                "Memento<std::gtl::flat_hash_map>", capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "mementomash") {
-            bench<MementoEngine<MashTable>>("Memento<MashTable>", filename,
+            bench<MementoEngine<MashTable>>("Memento<MashTable>",
                 capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "jump") {
-            bench<JumpEngine>("JumpEngine", filename,
+            bench<JumpEngine>("JumpEngine",
                 capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "power") {
-            bench<PowerEngine>("PowerEngine", filename,
+            bench<PowerEngine>("PowerEngine",
                 capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else if (current_algorithm.name == "dx") {
-            bench<DxEngine>("DxPower", filename, capacity, working_set, 
+            bench<DxEngine>("DxPower", capacity, working_set,
                 num_removals, key_multiplier * working_set, balance);
         }
         else {
             fmt::println("Unknown algorithm {}", current_algorithm.name);
-          
         }
     }
     auto& balance_writer = CsvWriter<Balance>::getInstance("./", "balance.csv");

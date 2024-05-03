@@ -53,6 +53,7 @@ static unsigned long allocated{ 0 };
 static unsigned long deallocated{ 0 };
 static unsigned long maximum{ 0 };
 
+// KEEP
 inline void* operator new(size_t size) {
     void* p = malloc(size);
     allocations += 1;
@@ -208,10 +209,10 @@ double parse_removal_rate(const std::string& removal_rate_str) {
     return removal_rate;
 }
         
-inline int speed_test(const std::string& output_path, std::size_t working_set, const std::string& hash_function,
-    const std::string& key_distribution, const std::vector<AlgorithmSettings>& algorithms,
+inline int speed_test(const std::string& output_path, const AlgorithmSettings& current_algorithm,
+    std::size_t working_set, const std::string& hash_function, const std::string& key_distribution,
     const std::unordered_map<std::string, std::string>& args, const CommonSettings& common_settings) {
-       
+
     // Further parse "removal-rate", aka initial nodes to remove.
     double removal_rate{}; // default value
     if (args.count("removal-rate")) {
@@ -243,98 +244,98 @@ inline int speed_test(const std::string& output_path, std::size_t working_set, c
     lookup_time.param_benchmark = "lookuptime";
     lookup_time.benchmark = "speed_test=>bench";
 
-    for (const auto& current_algorithm : algorithms) {
-        lookup_time.param_algorithm = current_algorithm.name;
+    lookup_time.param_algorithm = current_algorithm.name;
 
-        const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
-        const uint32_t num_removals = static_cast<uint32_t>(removal_rate * working_set);
-        uint32_t capacity = 10 * working_set; // default capacity = 10
-        if (current_algorithm.args.contains("capacity")) {
-            try {
-                capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-            } catch (const std::exception& e) {
-                std::cerr << "std::stoi exception: " << e.what() << '\n';
-            }
+    const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
+    const uint32_t num_removals = static_cast<uint32_t>(removal_rate * working_set);
+    uint32_t capacity = 10 * working_set; // default capacity = 10
+    if (current_algorithm.args.contains("capacity")) {
+        try {
+            capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
         }
-
-        if (current_algorithm.name == "null") {
-            // do nothing
-            continue;
-        }
-        else if (current_algorithm.name == "baseline") {
-#ifdef USE_PCG32
-            pcg_extras::seed_seq_from<std::random_device> seed;
-            pcg32 rng(seed);
-#else
-            srand(time(NULL));
-#endif
-            fmt::println("Allocating {} buckets of size {} bytes...", capacity,
-                sizeof(uint32_t));
-            uint32_t* bucket_status = new uint32_t[capacity]();
-            for (uint32_t i = 0; i < working_set; i++) {
-                bucket_status[i] = 1;
-            }
-            uint32_t i = 0;
-            while (i < num_removals) {
-#ifdef USE_PCG32
-                uint32_t removed = rng() % working_set;
-#else
-                uint32_t removed = rand() % working_set;
-#endif
-                if (bucket_status[removed] == 1) {
-                    bucket_status[removed] = 0;
-                    i++;
-                }
-            }
-            delete[] bucket_status;
-        }
-        else if (current_algorithm.name == "anchor") {
-            bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "memento") {
-            bench<MementoEngine<boost::unordered_flat_map>>(
-                "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "mementoboost") {
-            bench<MementoEngine<boost::unordered_map>>(
-                "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "mementostd") {
-            bench<MementoEngine<std::unordered_map>>(
-                "Memento<std::unordered_map>", full_file_path, capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "mementogtl") {
-            bench<MementoEngine<gtl::flat_hash_map>>(
-                "Memento<std::gtl::flat_hash_map>", full_file_path, capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "mementomash") {
-            bench<MementoEngine<MashTable>>("Memento<MashTable>", full_file_path,
-                capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "jump") {
-            bench<JumpEngine>("JumpEngine", full_file_path,
-                capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "power") {
-            bench<PowerEngine>("PowerEngine", full_file_path,
-                capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else if (current_algorithm.name == "dx") {
-            bench<DxEngine>("DxEngine", full_file_path, capacity, working_set,
-                num_removals, working_set, lookup_time);
-        }
-        else {
-            fmt::println("Unknown algorithm {}", current_algorithm.name);
+        catch (const std::exception& e) {
+            std::cerr << "std::stoi exception: " << e.what() << '\n';
         }
     }
+
+    if (current_algorithm.name == "null") {
+        // do nothing
+        return 0;
+    }
+    else if (current_algorithm.name == "baseline") {
+#ifdef USE_PCG32
+        pcg_extras::seed_seq_from<std::random_device> seed;
+        pcg32 rng(seed);
+#else
+        srand(time(NULL));
+#endif
+        fmt::println("Allocating {} buckets of size {} bytes...", capacity,
+            sizeof(uint32_t));
+        uint32_t* bucket_status = new uint32_t[capacity]();
+        for (uint32_t i = 0; i < working_set; i++) {
+            bucket_status[i] = 1;
+        }
+        uint32_t i = 0;
+        while (i < num_removals) {
+#ifdef USE_PCG32
+            uint32_t removed = rng() % working_set;
+#else
+            uint32_t removed = rand() % working_set;
+#endif
+            if (bucket_status[removed] == 1) {
+                bucket_status[removed] = 0;
+                i++;
+            }
+        }
+        delete[] bucket_status;
+    }
+    else if (current_algorithm.name == "anchor") {
+        bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "memento") {
+        bench<MementoEngine<boost::unordered_flat_map>>(
+            "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "mementoboost") {
+        bench<MementoEngine<boost::unordered_map>>(
+            "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "mementostd") {
+        bench<MementoEngine<std::unordered_map>>(
+            "Memento<std::unordered_map>", full_file_path, capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "mementogtl") {
+        bench<MementoEngine<gtl::flat_hash_map>>(
+            "Memento<std::gtl::flat_hash_map>", full_file_path, capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "mementomash") {
+        bench<MementoEngine<MashTable>>("Memento<MashTable>", full_file_path,
+            capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "jump") {
+        bench<JumpEngine>("JumpEngine", full_file_path,
+            capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "power") {
+        bench<PowerEngine>("PowerEngine", full_file_path,
+            capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else if (current_algorithm.name == "dx") {
+        bench<DxEngine>("DxEngine", full_file_path, capacity, working_set,
+            num_removals, working_set, lookup_time);
+    }
+    else {
+        fmt::println("Unknown algorithm {}", current_algorithm.name);
+    }
+    
     auto& lookuptime_writer = CsvWriter<LookupTime>::getInstance("./", "lookup_time.csv");
     lookuptime_writer.add(lookup_time);
     return 0;

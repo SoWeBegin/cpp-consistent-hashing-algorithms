@@ -14,8 +14,7 @@
 
 struct AlgorithmSettings final {
   std::string name;
-  std::unordered_map<std::string, std::string>
-      args; // [argumentName][argumentValue]
+  std::unordered_map<std::string, std::string> args; // [argumentName][argumentValue]
 };
 
 // specified values are default ones
@@ -33,10 +32,11 @@ struct CommonSettings final {
 struct BenchmarkSettings final {
   std::string name;
   CommonSettings commonSettings;
-  std::unordered_map<std::string, std::string>
-      args; // [argumentName][argumentValue]
+  std::unordered_map<std::string, std::string> args; // [argumentName][argumentValue]
 };
 
+// This class validates input except for the "benchmark" part, where each single benchmark is responsible
+// for validating their arguments.
 class YamlParser final {
 private:
   CommonSettings m_commonSettings;
@@ -48,7 +48,7 @@ public:
 
   explicit YamlParser(const std::filesystem::path &directory,
                       const std::string &fileName) {
-    const std::filesystem::path filePath = fileName; // directory / fileName;
+    const std::filesystem::path filePath = directory / fileName; 
 
     if (!std::filesystem::exists(filePath)) {
       throw std::invalid_argument(
@@ -124,6 +124,18 @@ public:
               const std::string argName = pair.first.as<std::string>();
               const std::string argValue = pair.second.as<std::string>();
               algorithmSettings.args[argName] = argValue;
+
+              if (argName == "permutations") {
+                  try {
+                      std::size_t val = std::stoi(argValue);
+                      if (val < 128) {
+                          throw std::invalid_argument(
+                              "The minimum value of the permutation inside the yaml file is 128!");
+                      }
+                  } catch (...) {
+                      throw;
+                  }
+              }
             }
           }
           m_algorithms.push_back(algorithmSettings);

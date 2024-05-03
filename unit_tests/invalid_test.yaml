@@ -22,7 +22,7 @@ common:
     time:
         # The time unit the results refer to.
         # Possible values are: SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS
-        # Default is NANOSECONDS.
+        # Default is NANOSECONDS. 
         unit: NANOSECONDS
 
         # Defines how the execution time is measured.
@@ -38,7 +38,7 @@ common:
         # Number of seconds every execution iteration should last.
         # Default value 5.
         execution: 5
-
+    
     # Number of initial active nodes.
     # At least one positive value must be provided.
     # Benchmarks will run for every specified cluster size.
@@ -77,7 +77,7 @@ algorithms:
           # Default value for the capacity is 10.
           capacity: 10
     - name: dx
-      args:
+      args: 
           # Same as above.
           capacity: 10
     - name: jump
@@ -110,7 +110,7 @@ algorithms:
 
 # Lists the benchmarks to be executed.
 # The list shows the currently implemented benchmarks.
-benchmarks:
+benchmarks: 
 
     # Benchmarks the time needed by an algorithm to initialize its internal data structure.
     - name: init-time
@@ -167,7 +167,7 @@ benchmarks:
       args:
           # See keyMultiplier on BenchmarkBalance.
           # Default value is 100.
-          key-multiplier: 100
+          key-multiplier: 100 
 
     # Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
     - name: monotonicity

@@ -39,3 +39,16 @@ std::size_t parse_key_multiplier(const std::string& key_multiplier_str) {
     }
     return keyMultiplier;
 }
+
+std::vector<double> parse_fractions(const std::string& fractions_str) {
+    std::vector<double> fractions;
+    std::istringstream iss(fractions_str);
+
+    iss.ignore(1);
+    double fraction;
+    while (iss >> fraction) {
+        fractions.push_back(fraction);
+        iss.ignore();
+    }
+    return fractions;
+}
