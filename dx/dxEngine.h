@@ -37,6 +37,8 @@ public:
         static std::uniform_int_distribution<uint32_t> distribution(0, m_capacity - 1);
         rng.seed(hashValue);
         uint32_t b = distribution(rng);
+        // quel bucket lo abbiamo rimosso??
+        // ne devo generare un altro
         while (m_failed.test(b)) {
             b = distribution(rng); // Trova un bucket non fallito
         }

@@ -1,5 +1,0 @@
-if(EXISTS "C:/Users/Tony/OneDrive/Desktop/SUPSI/anno_3/ProgettoSemestreLatest/out/build/x64-Release/yaml-parser-tests[1]_tests.cmake")
-  include("C:/Users/Tony/OneDrive/Desktop/SUPSI/anno_3/ProgettoSemestreLatest/out/build/x64-Release/yaml-parser-tests[1]_tests.cmake")
-else()
-  add_test(yaml-parser-tests_NOT_BUILT yaml-parser-tests_NOT_BUILT)
-endif()

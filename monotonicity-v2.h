@@ -40,6 +40,7 @@ for key in random_key_list :
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #ifndef MONOTONICITY_BENCH_H
 #define MONOTONICITY_BENCH_H
 
@@ -68,33 +69,15 @@ for key in random_key_list :
 #include "csvWriter.h"
 #include "utils.h"
 
- // monotonicity: Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
+// monotonicity: Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
 
-  /*
-   * Benchmark routine
-   */
-template <typename Algorithm>
-inline void bench(const std::string& name, const std::string file_name,
-    std::size_t anchor_set /* capacity */, std::size_t working_set,
-    uint32_t num_removals, uint32_t num_keys, double current_fraction, 
-    Monotonicity& monotonicity) {
-
-    Algorithm engine(anchor_set, working_set);
-
-    // random removals
-    uint32_t* bucket_status = new uint32_t[anchor_set]();
-
-    // all nodes are working
-    for (uint32_t i = 0; i < working_set; i++) {
-        bucket_status[i] = 1;
-    }
-
-    // 1. Assign buckets and check keys_per_node
-    boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket;
-    std::vector<uint32_t> keys_per_node(working_set);
-
-    // Determine the current key bucket assigment
-    for (uint32_t i = 0; i < num_keys;) {
+ /* this function generates a sequence of random numbers pairs
+ * num_keys: total keys to generate where each key is a pair of 2 random numbers
+ * return: a vector of pairs of random numbers
+ */
+std::vector<std::pair<uint32_t, uint32_t>> generate_random_sequence (std::size_t num_keys){
+    std::vector<std::pair<uint32_t, uint32_t>> ret;
+    for (uint32_t i = 0; i < num_keys;++i) {
 #ifdef USE_PCG32
         auto a{ rng() };
         auto b{ rng() };
@@ -102,82 +85,117 @@ inline void bench(const std::string& name, const std::string file_name,
         auto a{ rand() };
         auto b{ rand() };
 #endif
-        if (bucket.contains({ a, b }))
+        ret.push_back(std::pair<uint32_t,uint32_t>{a,b});     
+    }
+    return ret;
+}
+
+  /*
+   * Benchmark routine
+   */
+template <typename Algorithm>
+inline void bench(const std::string& name, const std::string file_name,
+    std::size_t anchor_set /* capacity */, std::size_t working_set,
+    uint32_t num_removals, uint32_t num_keys, double current_fraction,
+    Monotonicity& monotonicity) {
+
+
+    /*
+
+unordered_map<key,bucket> initial_assignment;
+
+random_key_list = generate_key_list(num_keys)
+
+for key in random_key_list:
+    initial_assignment[key] = get_bucket(key)
+
+
+nodes[size ] = {1...}
+for n in range(0, num_removals):
+    remove random node i
+    nodes[i] = 0
+
+for key in random_key_list :
+    b = get_bucket(key)
+    original_b = initial_assignment[key]
+    if b != original_b && nodes[original_b] == 0;
+# nodo rimosso-> OK
+
+
+*/
+
+
+
+    Algorithm engine(anchor_set, working_set);
+
+    // random removals
+    uint32_t* nodes = new uint32_t[anchor_set]();
+
+    // all nodes are working
+    for (uint32_t i = 0; i < working_set; i++) {
+        nodes[i] = 1;
+    }
+
+    // 1. Assign buckets and check keys_per_node
+    boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket;
+
+    // Generiamo una sequenza di numeri casuali e la salviamo in una variabile perchè
+    // per ogni bucket che togliamo dopo dobbiamo rimetterlo nei nodi 
+    // con la stessa chiave
+    auto random_sequence = generate_random_sequence(num_keys);
+
+    // Inizializziamo i nodi con i rispettivi buckets che ogni nodo avrà
+    for (const auto& current_random_number : random_sequence) {
+        auto a = current_random_number.first;
+        auto b = current_random_number.second;
+        if (bucket.contains(current_random_number))
             continue;
+        // target: indice (numero) del nodo a cui assegnare il bucket 
         auto target = engine.getBucketCRC32c(a, b);
-        bucket[{a, b}] = target;
-        ++keys_per_node[target];
+        // bucket.add(key--> current_random_number, valore)
+        //bucket--> mappa chiavi valore 
+        bucket[current_random_number] = target;
         // Verify that we got a working bucket
-        if (!bucket_status[target]) {
+        // se il nodo = 0 vuol dire che è spento quindi non posso aggiungere il bucket
+        // nodes: array contenente 1 o 0 per capire se il server è accesso o spento
+        if (!nodes[target]) {
             throw "Crazy bug";
         }
-        ++i;
     }
-    fmt::println("Done determining initial assignment of {} unique keys",
-        num_keys);
-
-    // map<hiave, valore>
-    // array per stato nodo
-    // movedFrom
-
-    int smallest_removed_idx = static_cast<int>((1 - current_fraction) * working_set);
-    smallest_removed_idx = std::max(smallest_removed_idx, 0);
-    smallest_removed_idx = std::min(smallest_removed_idx, static_cast<int>(keys_per_node.size()));
-    int sum = std::accumulate(keys_per_node.begin() + smallest_removed_idx, keys_per_node.end(), 0);
-    monotonicity.keys_in_removed_nodes = sum;
 
     // 2. Remove num_removals working nodes, update moved_from
     // simulate num_removals removals of nodes
-    uint32_t i = 0;
-    while (i < num_removals) {
+    //num_removals: quanti nodi dobbiamo togliere
+    for (std::size_t i = 0; i < num_removals;) {
 #ifdef USE_PCG32
         uint32_t removed = rng() % working_set;
 #else
         uint32_t removed = rand() % working_set;
 #endif
-        if (bucket_status[removed] == 1) {
+        if (nodes[removed] == 1) {
             auto rnode = engine.removeBucket(removed);
-            bucket_status[rnode] = 0; // Remove the actually removed 
-            if (!bucket_status[rnode]) {
+            if (!nodes[rnode]) {
                 throw "Crazy bug";
             }
+            nodes[rnode] = 0; // Remove the actually removed 
             i++;
         }
     }
 
-    // 3. Restore num_removals nodes, update moved_to
-    for (uint32_t i = 0; i < num_removals; ++i) {
-        uint32_t added_node = engine.addBucket(); // Riaggiungi un nodo
-        bucket_status[added_node] = 1; // Imposta lo stato del nodo come attivo
-        // Riassegna le chiavi ai bucket appena aggiunti
-        for (auto& entry : bucket) {
-            auto key = entry.first;
-            auto target = engine.getBucketCRC32c(key.first, key.second);
-            if (target == added_node) {
-                ++keys_per_node[added_node]; // Incrementa il numero di chiavi assegnate al nodo
-            }
+
+    // rimettiamo i nodi con le stesse keys
+    for (const auto& current_random_number : random_sequence) {
+        auto a = current_random_number.first;
+        auto b = current_random_number.second;
+        // dovrebbe tornare lo stesso target
+        auto target = engine.getBucketCRC32c(a, b);
+        // se l'indice ritornato non è l'indice che abbiamo salvato prima e se il nodo originale è spento
+        // il nodo si è spostato
+        if (target != bucket[current_random_number] && nodes[bucket[current_random_number]] == 0) {
+
         }
     }
 
-    // Remove a random working node
-    uint32_t removed{ 0 };
-    uint32_t rnode{ 0 };
-    for (;;) {
-#ifdef USE_PCG32
-        removed = rng() % working_set;
-#else
-        removed = rand() % working_set;
-#endif
-        if (bucket_status[removed] == 1) {
-            rnode = engine.removeBucket(removed);
-            fmt::println("Removed node {}", rnode);
-            if (!bucket_status[rnode]) {
-                throw "Crazy bug";
-            }
-            bucket_status[rnode] = 0; // Remove the actually removed node
-            break;
-        }
-    }
 
     uint32_t misplaced{ 0 };
     for (const auto& i : bucket) {
@@ -188,8 +206,8 @@ inline void bench(const std::string& name, const std::string file_name,
         if (oldbucket != newbucket && (oldbucket != rnode)) {
             fmt::println("(After Removal) Misplaced key {},{}: before in bucket {}, "
                 "now in bucket {} (status? old bucket {}, new bucket {})",
-                a, b, oldbucket, newbucket, bucket_status[oldbucket],
-                bucket_status[newbucket]);
+                a, b, oldbucket, newbucket, nodes[oldbucket],
+                nodes[newbucket]);
             ++misplaced;
         }
     }
@@ -208,7 +226,7 @@ inline void bench(const std::string& name, const std::string file_name,
     misplaced = 0;
     // Add back a node
     auto anode = engine.addBucket();
-    bucket_status[anode] = 1;
+    nodes[anode] = 1;
     fmt::println("Added node {}", anode);
 
     for (const auto& i : bucket) {
@@ -219,8 +237,8 @@ inline void bench(const std::string& name, const std::string file_name,
         if (oldbucket != newbucket) {
             fmt::println("(After Add) Misplaced key {},{}: before in bucket {}, now "
                 "in bucket {} (status? old bucket {}, new bucket {})",
-                a, b, oldbucket, newbucket, bucket_status[oldbucket],
-                bucket_status[newbucket]);
+                a, b, oldbucket, newbucket, nodes[oldbucket],
+                nodes[newbucket]);
             ++misplaced;
         }
     }
@@ -239,7 +257,7 @@ inline void bench(const std::string& name, const std::string file_name,
 
     ////////////////////////////////////////////////////////////////////
 
-    delete[] bucket_status;
+    delete[] nodes;
 }
 
 
