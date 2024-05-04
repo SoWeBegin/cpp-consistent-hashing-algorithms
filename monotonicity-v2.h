@@ -1,26 +1,4 @@
-/*
 
-unordered_map<key,bucket> initial_assignment;
-
-random_key_list = generate_key_list(num_keys)
-
-for key in random_key_list:
-    initial_assignment[key] = get_bucket(key)
-
-
-nodes[size ] = {1...}
-for n in range(0, num_removals):
-    remove random node i
-    nodes[i] = 0
-
-for key in random_key_list :
-    b = get_bucket(key)
-    original_b = initial_assignment[key]
-    if b != original_b && nodes[original_b] == 0;
-# nodo rimosso-> OK
-
-
-*/
 
 
 /*
@@ -78,6 +56,27 @@ inline void bench(const std::string& name, const std::string file_name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, double current_fraction, 
     Monotonicity& monotonicity) {
+
+    /*
+    unordered_map<key,bucket> initial_assignment;
+
+    random_key_list = generate_key_list(num_keys)
+
+    for key in random_key_list:
+        initial_assignment[key] = get_bucket(key)
+
+
+    nodes[size ] = {1...}
+    for n in range(0, num_removals):
+        remove random node i
+        nodes[i] = 0
+
+    for key in random_key_list :
+        b = get_bucket(key)
+        original_b = initial_assignment[key]
+        if b != original_b && nodes[original_b] == 0;
+         # nodo rimosso-> OK
+*/
 
     Algorithm engine(anchor_set, working_set);
 
