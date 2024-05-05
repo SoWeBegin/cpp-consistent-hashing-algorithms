@@ -102,6 +102,22 @@ inline void bench(const std::string& name, const std::string file_name,
     uint32_t num_removals, uint32_t num_keys, double current_fraction,
     Monotonicity& monotonicity) {
 
+    uint32_t keys_moved_from_removed_nodes = 0; // OK
+    uint32_t keys_moved_from_other_nodes = 0; // OK
+    uint32_t keys_moved_to_restored_nodes = 0; //OK
+    uint32_t keys_moved_to_other_nodes = 0; // Ok
+    uint32_t nodes_losing_keys = 0;
+    uint32_t nodes_gaining_keys = 0;
+    uint32_t keys_relocated_after_resize = 0;
+    uint32_t nodes_changed_after_resize = 0;
+    uint32_t keys_in_removed_nodes = 0; // OK
+
+    std::vector<uint32_t> keys_per_node;
+    std::vector<uint32_t> moved_from_removed_nodes;
+    std::vector<uint32_t> moved_from_other_nodes;
+    std::vector<uint32_t> moved_to_restored_nodes;
+    std::vector<uint32_t> moved_to_other_nodes;
+
     Algorithm engine(anchor_set, working_set);
 
     // anchor_set = total nodes, not necessarily all used now
@@ -136,7 +152,8 @@ inline void bench(const std::string& name, const std::string file_name,
         // where key=current_random_number and target=index of node
         // bucket.insert(current_random_number, target_node); => same as insert{Key, Value}
         bucket[current_random_number] = target_node;
-        
+        keys_per_node[target_node]++;
+
         // Verify that we got a working node
         if (!nodes[target_node]) {
             delete[] nodes;
@@ -169,6 +186,8 @@ inline void bench(const std::string& name, const std::string file_name,
             }
             nodes[removed_node] = 0;
             ++i;
+            nodes_losing_keys++;
+            //keys_in_removed_nodes++;
         }
     }
 
@@ -182,83 +201,83 @@ inline void bench(const std::string& name, const std::string file_name,
         const auto new_target = engine.getBucketCRC32c(a, b);
         const auto old_target = bucket[current_random_number];
         
-        if (new_target == old_target && nodes[old_target] == 0) {
-            // This cannot be the case: the node at [old_target] was_removed
-            // but new_target is still linked to that removed node!
-        }
-        else if (new_target == old_target && nodes[old_target] == 1) {
-            // We haven't removed the node at nodes[old_target]
-            // therefore the key linked to nodes[old_target] was not moved out of it
-        }
-        else if (new_target != old_target && nodes[old_target] == 0) {
+  
+        if (new_target != old_target && nodes[old_target] == 0) {
             // All the keys that were moved from the removed node nodes[old_target].
             // => KeysMovedFromRemovedNodes
+            //keys_moved_from_removed_nodes++;
+            moved_from_removed_nodes[old_target]++;
+        }
+        else if (new_target == old_target && nodes[old_target] == 0) {
+ 
+           
+        }
+        else if (new_target == old_target && nodes[old_target] == 1) {
+
+            
         }
         else if (new_target != old_target && nodes[old_target] == 1) {
             // Other keys that were moved from the nodes that are still active, nodes[new_target]
             // => KeysMovedFromOtherNodes
+            //keys_moved_from_other_nodes++;
+            moved_from_other_nodes[old_target]++;
         }
     }
 
     // Add num_removals nodes back (restore the nodes)
-    for (std::size_t i = 0; i < num_removals;) {
-        // removed = random value, which represents a random node to remove
-#ifdef USE_PCG32
-        const uint32_t removed = rng() % working_set;
-#else
-        const uint32_t removed = rand() % working_set;
-#endif
-        // check that this node has not been removed yet.
-        // this check is only needed for those algorithms
-        // that support random removals, since they return
-        // the same value (removed) that we passed to removeBucket.
-        // i.e. nodes[removed_node] in such cases is the same as nodes[removed].
-        if (nodes[removed] == 1) {
-            const auto removed_node = engine.removeBucket(removed);
-            if (!nodes[removed_node]) {
-                // engine.removeBucket(removed) returned a node that
-                // was already removed by the engine: this can't be a valid case.
-                delete[] nodes;
-                throw "Crazy bug";
-            }
-            nodes[removed_node] = 0;
-            ++i;
-            }
+    for (std::size_t i = 0; i < num_removals; ++i) {
+       auto added_node = engine.addBucket();     
+       nodes[added_node] = 1;   // enable node
+    }
+
+    for (const auto& current_random_number : random_keys) {
+        const auto a = current_random_number.first;
+        const auto b = current_random_number.second;
+        // ideally we should get the same target as before before.
+        const auto new_target = engine.getBucketCRC32c(a, b);
+        const auto old_target = bucket[current_random_number];
+
+        // readded node and the key doesn't change
+        if (new_target == old_target && nodes[old_target] == 1) {
+            // KeysMovedToRestoreNodes
+            //keys_moved_to_restored_nodes++;
+            nodes_gaining_keys++;
+            moved_to_restored_nodes[old_target]++;
         }
-
-    misplaced = 0;
-    // Add back a node
-    auto anode = engine.addBucket();
-    nodes[anode] = 1;
-    fmt::println("Added node {}", anode);
-
-    for (const auto& i : bucket) {
-        auto oldbucket = i.second;
-        auto a{ i.first.first };
-        auto b{ i.first.second };
-        auto newbucket = engine.getBucketCRC32c(a, b);
-        if (oldbucket != newbucket) {
-            fmt::println("(After Add) Misplaced key {},{}: before in bucket {}, now "
-                "in bucket {} (status? old bucket {}, new bucket {})",
-                a, b, oldbucket, newbucket, nodes[oldbucket],
-                nodes[newbucket]);
-            ++misplaced;
+    
+        // readded node and the key change
+        else if (new_target != old_target && nodes[old_target] == 1) {
+            // KeysMovedToOtherNodes
+            //keys_moved_to_other_nodes++;
+            nodes_gaining_keys++;
+            keys_relocated_after_resize++;
+            nodes_changed_after_resize++;
+            moved_to_other_nodes[old_target]++;
         }
     }
 
-    m = (double)misplaced / (num_keys);
-
-#ifdef USE_PCG32
-    fmt::println(
-        "{}: after adding back % misplaced keys are {}% ({} keys out of {})\n",
-        name, m * 100, misplaced, num_keys);
-#else
-    fmt::println(
-        "{}: after adding back misplaced keys are {}% ({} keys out of {})", name,
-        m * 100, misplaced, num_keys);
-#endif
-
     ////////////////////////////////////////////////////////////////////
+    
+    for (auto i : keys_per_node) {
+        monotonicity.keys_in_removed_nodes += i;
+    }
+
+    for (auto i : moved_from_removed_nodes) {
+        monotonicity.keys_moved_from_removed_nodes += i;
+    }
+
+    for (auto i : moved_from_other_nodes) {
+        monotonicity.keys_moved_from_other_nodes += i;
+    }
+
+    for (auto i : moved_to_restored_nodes) {
+        monotonicity.keys_moved_to_restored_nodes += i;
+    }
+
+    for (auto i : moved_to_other_nodes) {
+        monotonicity.keys_moved_to_other_nodes += i;
+    }
+
 
     delete[] nodes;
 }
