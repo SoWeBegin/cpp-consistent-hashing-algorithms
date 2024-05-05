@@ -26,9 +26,14 @@
 class DxEngine final {
 public:
     explicit DxEngine(uint32_t capacity, uint32_t size)
-        : m_size(size), m_capacity(capacity) {
+        : m_size(0) /* addBucket will increment this */, m_capacity(capacity)
+    {
         m_failed.resize(m_capacity);
         m_failed.set(m_size, m_capacity - m_size, true);
+
+        for (uint32_t i = 0; i < size; ++i) {
+            addBucket();
+        }
     }
 
     uint32_t getBucketCRC32c(uint64_t key, uint64_t seed) {

@@ -1,4 +1,26 @@
+/*
 
+unordered_map<key,bucket> initial_assignment;
+
+random_key_list = generate_key_list(num_keys)
+
+for key in random_key_list:
+    initial_assignment[key] = get_bucket(key)
+
+
+nodes[size ] = {1...}
+for n in range(0, num_removals):
+    remove random node i
+    nodes[i] = 0
+
+for key in random_key_list :
+    b = get_bucket(key)
+    original_b = initial_assignment[key]
+    if b != original_b && nodes[original_b] == 0;
+# nodo rimosso-> OK
+
+
+*/
 
 
 /*
@@ -49,19 +71,22 @@
 
 // monotonicity: Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
 
- /* this function generates a sequence of random numbers pairs
- * num_keys: total keys to generate where each key is a pair of 2 random numbers
- * return: a vector of pairs of random numbers
+/*
+ * this function generates a sequence of random keys, with key = {random(a), random(b)}
+ * num_keys: total keys to generate randomly
+ * return: a vector of keys
  */
-std::vector<std::pair<uint32_t, uint32_t>> generate_random_sequence (std::size_t num_keys){
+inline std::vector<std::pair<uint32_t, uint32_t>> 
+generate_random_keys_sequence(std::size_t num_keys) {
+
     std::vector<std::pair<uint32_t, uint32_t>> ret;
-    for (uint32_t i = 0; i < num_keys;++i) {
+    for (uint32_t i = 0; i < num_keys; ++i) {
 #ifdef USE_PCG32
-        auto a{ rng() };
-        auto b{ rng() };
+        const auto a{ rng() };
+        const auto b{ rng() };
 #else
-        auto a{ rand() };
-        auto b{ rand() };
+        const auto a{ rand() };
+        const auto b{ rand() };
 #endif
         ret.push_back(std::pair<uint32_t,uint32_t>{a,b});     
     }
@@ -73,106 +98,133 @@ std::vector<std::pair<uint32_t, uint32_t>> generate_random_sequence (std::size_t
    */
 template <typename Algorithm>
 inline void bench(const std::string& name, const std::string file_name,
-    std::size_t anchor_set /* capacity */, std::size_t working_set,
+    std::size_t anchor_set, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, double current_fraction,
     Monotonicity& monotonicity) {
 
     Algorithm engine(anchor_set, working_set);
 
-    // random removals
+    // anchor_set = total nodes, not necessarily all used now
     uint32_t* nodes = new uint32_t[anchor_set]();
 
-    // all nodes are working
+    // working_set = nodes that we currently use
     for (uint32_t i = 0; i < working_set; i++) {
-        nodes[i] = 1;
+        nodes[i] = 1; // 1 = working node; 0 = non-working node
     }
 
-    // 1. Assign buckets and check keys_per_node
+    // bucket: represents a map of buckets, then assigned to a given node.
+    // the value of the bucket is the index of the node to which the
+    // respective key is linked to. The key is the "data", which in our case
+    // is a randomly generated key.
     boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket;
 
-    // Generiamo una sequenza di numeri casuali e la salviamo in una variabile perchè
-    // per ogni bucket che togliamo dopo dobbiamo rimetterlo nei nodi 
-    // con la stessa chiave
-    auto random_sequence = generate_random_sequence(num_keys);
+    const auto random_keys = generate_random_keys_sequence(num_keys);
 
-    // Inizializziamo i nodi con i rispettivi buckets che ogni nodo avrà
-    for (const auto& current_random_number : random_sequence) {
-        auto a = current_random_number.first;
-        auto b = current_random_number.second;
-        if (bucket.contains(current_random_number))
-            continue;
-        // target: indice (numero) del nodo a cui assegnare il bucket 
-        auto target = engine.getBucketCRC32c(a, b);
-        // bucket.add(key--> current_random_number, valore)
-        //bucket--> mappa chiavi valore 
-        bucket[current_random_number] = target;
-        // Verify that we got a working bucket
-        // se il nodo = 0 vuol dire che è spento quindi non posso aggiungere il bucket
-        // nodes: array contenente 1 o 0 per capire se il server è accesso o spento
-        if (!nodes[target]) {
+    // 1. First, we start by assigning the bucket to the nodes.
+    // Basically we need to link each bucket to a node.
+    for (const auto& current_random_number : random_keys) {
+        const auto a = current_random_number.first;
+        const auto b = current_random_number.second;
+        if (bucket.contains(current_random_number)) {
+            continue; // we found a key that we already inserted
+        }
+        // target: index of the node to which we assign this bucket.
+        const auto target_node = engine.getBucketCRC32c(a, b);
+
+        // This bucket is linked to the target node. 
+        // Equivalent to bucket.add(key, value) 
+        // where key=current_random_number and target=index of node
+        // bucket.insert(current_random_number, target_node); => same as insert{Key, Value}
+        bucket[current_random_number] = target_node;
+        
+        // Verify that we got a working node
+        if (!nodes[target_node]) {
+            delete[] nodes;
             throw "Crazy bug";
         }
     }
 
-    // 2. Remove num_removals working nodes, update moved_from
-    // simulate num_removals removals of nodes
-    //num_removals: quanti nodi dobbiamo togliere
+    // 2. Remove num_removals working nodes
+    // num_removals: how many nodes we should remove 
     for (std::size_t i = 0; i < num_removals;) {
+        // removed = random value, which represents a random node to remove
 #ifdef USE_PCG32
-        uint32_t removed = rng() % working_set;
+        const uint32_t removed = rng() % working_set;
 #else
-        uint32_t removed = rand() % working_set;
+        const uint32_t removed = rand() % working_set;
 #endif
-        if (nodes[removed] == 1) {
-            auto rnode = engine.removeBucket(removed);
-            if (!nodes[rnode]) {
+        // check that this node has not been removed yet.
+        // this check is only needed for those algorithms
+        // that support random removals, since they return
+        // the same value (removed) that we passed to removeBucket.
+        // i.e. nodes[removed_node] in such cases is the same as nodes[removed].
+
+        if (nodes[removed] == 1) { 
+            const auto removed_node = engine.removeBucket(removed);
+            if (!nodes[removed_node]) {
+                // engine.removeBucket(removed) returned a node that
+                // was already removed by the engine: this can't be a valid case.
+                delete[] nodes;
                 throw "Crazy bug";
             }
-            nodes[rnode] = 0; // Remove the actually removed 
-            i++;
+            nodes[removed_node] = 0;
+            ++i;
         }
     }
 
-
-    // rimettiamo i nodi con le stesse keys
-    for (const auto& current_random_number : random_sequence) {
-        auto a = current_random_number.first;
-        auto b = current_random_number.second;
-        // dovrebbe tornare lo stesso target
-        auto target = engine.getBucketCRC32c(a, b);
-        // se l'indice ritornato non è l'indice che abbiamo salvato prima e se il nodo originale è spento
-        // il nodo si è spostato
-        if (target != bucket[current_random_number] && nodes[bucket[current_random_number]] == 0) {
-
+    // Keys in removed nodes: number of keys in nodes to be removed before the removal of the nodes.
+    // Keys moved from removed nodes: number of keys moved from a removed node to another after the removal. Ideally near 1000.
+    // Keys moved from other nodes: number of keys moved from a working node to another node after removal of nodes. Ideally near 0.
+    for (const auto& current_random_number : random_keys) {
+        const auto a = current_random_number.first;
+        const auto b = current_random_number.second;
+        // ideally we should get the same target as before before.
+        const auto new_target = engine.getBucketCRC32c(a, b);
+        const auto old_target = bucket[current_random_number];
+        
+        if (new_target == old_target && nodes[old_target] == 0) {
+            // This cannot be the case: the node at [old_target] was_removed
+            // but new_target is still linked to that removed node!
+        }
+        else if (new_target == old_target && nodes[old_target] == 1) {
+            // We haven't removed the node at nodes[old_target]
+            // therefore the key linked to nodes[old_target] was not moved out of it
+        }
+        else if (new_target != old_target && nodes[old_target] == 0) {
+            // All the keys that were moved from the removed node nodes[old_target].
+            // => KeysMovedFromRemovedNodes
+        }
+        else if (new_target != old_target && nodes[old_target] == 1) {
+            // Other keys that were moved from the nodes that are still active, nodes[new_target]
+            // => KeysMovedFromOtherNodes
         }
     }
 
-
-    uint32_t misplaced{ 0 };
-    for (const auto& i : bucket) {
-        auto oldbucket = i.second;
-        auto a{ i.first.first };
-        auto b{ i.first.second };
-        auto newbucket = engine.getBucketCRC32c(a, b);
-        if (oldbucket != newbucket && (oldbucket != rnode)) {
-            fmt::println("(After Removal) Misplaced key {},{}: before in bucket {}, "
-                "now in bucket {} (status? old bucket {}, new bucket {})",
-                a, b, oldbucket, newbucket, nodes[oldbucket],
-                nodes[newbucket]);
-            ++misplaced;
-        }
-    }
-
-    double m = (double)misplaced / (num_keys);
-
+    // Add num_removals nodes back (restore the nodes)
+    for (std::size_t i = 0; i < num_removals;) {
+        // removed = random value, which represents a random node to remove
 #ifdef USE_PCG32
-    fmt::println(
-        "{}: after removal % misplaced keys are {}% ({} keys out of {})\n", name,
-        m * 100, misplaced, num_keys);
+        const uint32_t removed = rng() % working_set;
 #else
-    fmt::println("{}: after removal misplaced keys are {}% ({} keys out of {})",
-        name, m * 100, misplaced, num_keys);
+        const uint32_t removed = rand() % working_set;
 #endif
+        // check that this node has not been removed yet.
+        // this check is only needed for those algorithms
+        // that support random removals, since they return
+        // the same value (removed) that we passed to removeBucket.
+        // i.e. nodes[removed_node] in such cases is the same as nodes[removed].
+        if (nodes[removed] == 1) {
+            const auto removed_node = engine.removeBucket(removed);
+            if (!nodes[removed_node]) {
+                // engine.removeBucket(removed) returned a node that
+                // was already removed by the engine: this can't be a valid case.
+                delete[] nodes;
+                throw "Crazy bug";
+            }
+            nodes[removed_node] = 0;
+            ++i;
+            }
+        }
 
     misplaced = 0;
     // Add back a node
