@@ -1,29 +1,4 @@
 /*
-
-unordered_map<key,bucket> initial_assignment;
-
-random_key_list = generate_key_list(num_keys)
-
-for key in random_key_list:
-    initial_assignment[key] = get_bucket(key)
-
-
-nodes[size ] = {1...}
-for n in range(0, num_removals):
-    remove random node i
-    nodes[i] = 0
-
-for key in random_key_list :
-    b = get_bucket(key)
-    original_b = initial_assignment[key]
-    if b != original_b && nodes[original_b] == 0;
-# nodo rimosso-> OK
-
-
-*/
-
-
-/*
  * Copyright (c) 2023 Amos Brocco, Tony Kolarek, Tatiana Dal Busco
  * Adapted from cpp-anchorhash Copyright (c) 2020 anchorhash (MIT License)
  *
@@ -62,6 +37,7 @@ for key in random_key_list :
 #include "power/powerengine.h"
 #include <fmt/core.h>
 #include <fstream>
+#include <string>
 #include <gtl/phmap.hpp>    
 #include <unordered_map>
 #include <vector>
@@ -93,6 +69,9 @@ generate_random_keys_sequence(std::size_t num_keys) {
     return ret;
 }
 
+/* Uenerates the map for storing detailed benchmark results
+ * [key = specific benchmark measured, value = vector of nodes indexes]
+ */
 inline std::unordered_map<std::string, std::vector<uint32_t>>
 initialize_bench_results(std::size_t working_set, std::initializer_list<std::string> init_list) {
 
@@ -103,7 +82,7 @@ initialize_bench_results(std::size_t working_set, std::initializer_list<std::str
     return ret;
 }
 
-// Utility function to avoid having to repeat the same loops over and over again
+// utility function to avoid having to repeat the same loops over and over again
 template<typename Map, typename T>
 inline void count_keys_greater_than_one(const Map& results, const std::string& key, T& counter) {
     static_assert(std::is_same_v<Map, std::unordered_map<std::string, std::vector<uint32_t>>>,
@@ -161,7 +140,8 @@ inline void bench(const std::string& name, const std::string file_name,
         const auto target_node = engine.getBucketCRC32c(a, b);
 
         // We link the key {a,b} to the target_node.
-        // Equivalent to bucket.insert(key, value) where key=current_random_number aka {a,b} and target=index of node
+        // Equivalent to bucket.insert(key, value) where key=current_random_number aka 
+        // {a,b} and target=index of node
         bucket_before_remove[current_random_number] = target_node;
 
         // We added a key inside target_node, so we increment the number of keys for target_node.
@@ -282,12 +262,23 @@ inline void bench(const std::string& name, const std::string file_name,
         }
     }
  
-
     count_keys_greater_than_one(bench_results, "moved_from_removed_nodes", monotonicity.nodes_losing_keys);
     count_keys_greater_than_one(bench_results, "moved_from_other_nodes", monotonicity.nodes_losing_keys);
     count_keys_greater_than_one(bench_results, "moved_to_restored_nodes", monotonicity.nodes_gaining_keys);
     count_keys_greater_than_one(bench_results, "moved_to_other_nodes", monotonicity.nodes_gaining_keys);
     count_keys_greater_than_one(bench_results, "relocated_after_resize", monotonicity.nodes_changed_after_resize);
+
+    const auto total_moved_from = bench_results["moved_from_removed_nodes"].size() + bench_results["moved_from_other_nodes"].size();
+    const auto total_moved_to = bench_results["moved_to_restored_nodes"].size() + bench_results["moved_to_other_nodes"].size();
+
+    monotonicity.keys_moved_from_other_nodes_percentage = monotonicity.keys_moved_from_other_nodes / static_cast<double>(total_moved_from);
+    monotonicity.keys_moved_from_removed_nodes_percentage = monotonicity.keys_moved_from_removed_nodes / static_cast<double>(total_moved_from);
+    monotonicity.nodes_losing_keys_percentage = monotonicity.nodes_losing_keys / working_set;
+    monotonicity.keys_moved_to_restored_nodes_percentage = monotonicity.keys_moved_to_restored_nodes / static_cast<double>(total_moved_to);
+    monotonicity.keys_moved_to_other_nodes_percentage = monotonicity.keys_moved_to_other_nodes / static_cast<double>(total_moved_to);
+    monotonicity.nodes_gaining_keys_percentage = monotonicity.nodes_gaining_keys / working_set;
+    monotonicity.keys_relocated_after_resize_percentage = monotonicity.keys_relocated_after_resize / static_cast<double>(num_keys);
+    monotonicity.nodes_changed_after_resize_percentage = monotonicity.nodes_changed_after_resize / static_cast<double>(working_set);
 
     delete[] nodes;
 }
