@@ -47,28 +47,6 @@
 #include "utils.h"
 
 
-/*
- * this function generates a sequence of random keys, with key = {random(a), random(b)}
- * num_keys: total keys to generate randomly
- * return: a vector of keys
- */
-inline std::vector<std::pair<uint32_t, uint32_t>> 
-generate_random_keys_sequence(std::size_t num_keys) {
-
-    std::vector<std::pair<uint32_t, uint32_t>> ret;
-    for (uint32_t i = 0; i < num_keys; ++i) {
-#ifdef USE_PCG32
-        const auto a{ rng() };
-        const auto b{ rng() };
-#else
-        const auto a{ rand() };
-        const auto b{ rand() };
-#endif
-        ret.push_back(std::pair<uint32_t,uint32_t>{a,b});     
-    }
-    return ret;
-}
-
 /* Uenerates the map for storing detailed benchmark results
  * [key = specific benchmark measured, value = vector of nodes indexes]
  */
@@ -100,7 +78,7 @@ inline void count_keys_greater_than_one(const Map& results, const std::string& k
    * Benchmark routine
    */
 template <typename Algorithm>
-inline void bench(const std::string& name, const std::string file_name,
+inline void bench(const std::string& name,
     std::size_t anchor_set, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, double current_fraction,
     Monotonicity& monotonicity) {
@@ -109,7 +87,7 @@ inline void bench(const std::string& name, const std::string file_name,
         { "keys_per_node", "moved_from_removed_nodes",
         "moved_from_other_nodes", "moved_to_restored_nodes",
         "moved_to_other_nodes", "relocated_after_resize"});
-    
+
     Algorithm engine(anchor_set, working_set);
 
     // anchor_set = total nodes, not necessarily all used now
@@ -136,19 +114,19 @@ inline void bench(const std::string& name, const std::string file_name,
             continue; // we found a key that we already inserted
         }
 
-        // target_node: index of the node where the key {a,b} will be placed into.
-        const auto target_node = engine.getBucketCRC32c(a, b);
+        // target_node_pos: index of the node where the key {a,b} will be placed into.
+        const auto target_node_pos = engine.getBucketCRC32c(a, b);
 
-        // We link the key {a,b} to the target_node.
+        // We link the key {a,b} to the target_node_pos.
         // Equivalent to bucket.insert(key, value) where key=current_random_number aka 
         // {a,b} and target=index of node
-        bucket_before_remove[current_random_number] = target_node;
+        bucket_before_remove[current_random_number] = target_node_pos;
 
-        // We added a key inside target_node, so we increment the number of keys for target_node.
-        bench_results["keys_per_node"][target_node]++;
+        // We added a key inside target_node_pos, so we increment the number of keys for target_node_pos.
+        bench_results["keys_per_node"][target_node_pos]++;
 
         // Verify that we got a working node
-        if (!nodes[target_node]) {
+        if (!nodes[target_node_pos]) {
             delete[] nodes;
             throw "Crazy bug";
         }
@@ -256,7 +234,7 @@ inline void bench(const std::string& name, const std::string file_name,
         // The key moved from the original removed node to a new node, but after that it still holds that
         // target_pos_after_restore == target_pos_after_remove, and both are different than target_pos_before_remove, 
         // meaning that the key that was originally in the removed node did not move back to it even after we restored it.
-        else if (target_pos_after_restore != target_pos_before_remove && nodes[target_pos_before_remove]) {
+        else if (target_pos_after_restore != target_pos_before_remove) {
             bench_results["relocated_after_resize"][target_pos_before_remove]++;
             monotonicity.keys_relocated_after_resize++;
         }
@@ -284,22 +262,19 @@ inline void bench(const std::string& name, const std::string file_name,
 }
 
 
-inline int monotonicity(const std::string& output_path, const BenchmarkSettings& current_benchmark,
+inline void monotonicity(const std::string& output_path, const BenchmarkSettings& current_benchmark,
     const std::vector<AlgorithmSettings>& algorithms) {
 
     const auto& fractions = parse_fractions(current_benchmark.args.at("fractions"));
     if (!current_benchmark.args.count("fractions")) {
         fmt::println("no fractions key found in the yaml file.");
-        return 1;
     }
     if (fractions.size() < 1) {
         fmt::println("fractions must have at least 1 value");
-        return 1;
     }
-    for (auto current_fraction : fractions) {
+    for (double current_fraction : fractions) {
         if (current_fraction >= 0 && current_fraction < 1) continue;
         fmt::println("fraction values must be >= 0 and < 1");
-        return 1;
     }
 
     std::size_t key_multiplier = 100;
@@ -307,38 +282,29 @@ inline int monotonicity(const std::string& output_path, const BenchmarkSettings&
         key_multiplier = parse_key_multiplier(current_benchmark.args.at("keyMultiplier"));
     }
 
+    auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
+
     for (double current_fraction : fractions) {
         for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) { // Done for all benchmarks
             for (const auto& current_algorithm : algorithms) {
                 for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
                     for (const auto& working_set : current_benchmark.commonSettings.numInitialActiveNodes) {
-                        Monotonicity monotonicity;
-                        monotonicity.distribution = key_distribution;
-                        monotonicity.hash_function = hash_function;
-                        monotonicity.nodes = working_set;
-                        monotonicity.keys = key_multiplier * working_set;
-                        monotonicity.algorithm_name = current_algorithm.name;
-                        monotonicity.fraction = current_fraction;
 
-                        auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
-
-                        const std::string full_file_path = output_path + "/" + current_algorithm.name + ".txt";
+                        Monotonicity monotonicity(hash_function, current_algorithm.name, current_fraction,
+                            key_multiplier * working_set, key_distribution, working_set);
 
                         const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
-                        uint32_t capacity = 10 * working_set; // default capacity = 10
-
+                        uint32_t capacity = working_set * 10; // default capacity = 10
                         if (current_algorithm.args.contains("capacity")) {
                             try {
                                 capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-                            }
-                            catch (const std::exception& e) {
+                            } catch (const std::exception& e) {
                                 std::cerr << "std::stoi exception: " << e.what() << '\n';
                             }
                         }
 
                         if (current_algorithm.name == "null") {
-                            // do nothing
-                            return 0;
+                            return;
                         }
                         else if (current_algorithm.name == "baseline") {
                             fmt::println("Allocating {} buckets of size {} bytes...", capacity,
@@ -358,58 +324,57 @@ inline int monotonicity(const std::string& output_path, const BenchmarkSettings&
                             delete[] bucket_status;
                         }
                         else if (current_algorithm.name == "anchor") {
-                            bench<AnchorEngine>("Anchor", full_file_path, capacity, working_set,
+                            bench<AnchorEngine>("Anchor", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "memento") {
                             bench<MementoEngine<boost::unordered_flat_map>>(
-                                "Memento<boost::unordered_flat_map>", full_file_path, capacity, working_set,
+                                "Memento<boost::unordered_flat_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "mementoboost") {
                             bench<MementoEngine<boost::unordered_map>>(
-                                "Memento<boost::unordered_map>", full_file_path, capacity, working_set,
+                                "Memento<boost::unordered_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "mementostd") {
                             bench<MementoEngine<std::unordered_map>>(
-                                "Memento<std::unordered_map>", full_file_path, capacity, working_set,
+                                "Memento<std::unordered_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "mementogtl") {
                             bench<MementoEngine<gtl::flat_hash_map>>(
-                                "Memento<std::gtl::flat_hash_map>", full_file_path, capacity, working_set,
+                                "Memento<std::gtl::flat_hash_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "mementomash") {
-                            bench<MementoEngine<MashTable>>("Memento<MashTable>", full_file_path,
+                            bench<MementoEngine<MashTable>>("Memento<MashTable>",
                                 capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "jump") {
-                            bench<JumpEngine>("JumpEngine", full_file_path, capacity, working_set,
+                            bench<JumpEngine>("JumpEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "power") {
-                            bench<PowerEngine>("PowerEngine", full_file_path, capacity, working_set,
+                            bench<PowerEngine>("PowerEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else if (current_algorithm.name == "dx") {
-                            bench<DxEngine>("DxEngine", full_file_path, capacity, working_set,
+                            bench<DxEngine>("DxEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
                                 monotonicity);
                         }
                         else {
                             fmt::println("Unknown algorithm {}", current_algorithm.name);
-                            //return 2;
                         }
                         monotonicity_writer.add(monotonicity);
                     }
@@ -417,7 +382,6 @@ inline int monotonicity(const std::string& output_path, const BenchmarkSettings&
             }
         }
     }
-    return 0;
 }
 
 #endif

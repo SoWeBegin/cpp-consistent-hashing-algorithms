@@ -30,6 +30,15 @@ struct Monotonicity {
 	double nodes_gaining_keys_percentage{};
 	double keys_relocated_after_resize_percentage{};
 	double nodes_changed_after_resize_percentage{};
+
+	// constructor for initialization of values found in YAML file
+	explicit Monotonicity(const std::string& hash, const std::string& algo,
+		double fraction, std::size_t keys, const std::string distribution,
+		std::size_t nodes)
+		: hash_function{ hash }, algorithm_name{ algo }, fraction{ fraction }
+		, keys{ keys }, distribution{ distribution }, nodes{ nodes }
+	{
+	}
 };
 
 struct Balance {
@@ -44,6 +53,15 @@ struct Balance {
 	std::size_t expected{};
 	double min_percentage{};
 	double max_percentage{};
+
+	// constructor for initialization of values found in YAML file
+	explicit Balance(const std::string& hash, const std::string& algo,
+		std::size_t keys, const std::string& distribution, std::size_t nodes,
+		std::size_t iterations)
+		: hash_function{ hash }, algorithm_name{ algo }, keys{ keys }
+		, distribution{ distribution }, nodes{ nodes }, iterations{ iterations }
+	{
+	}
 };
 
 struct LookupTime {

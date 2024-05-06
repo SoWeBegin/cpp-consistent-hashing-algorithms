@@ -31,6 +31,7 @@ endif()
 
 add_executable(cpp-consistent-hashing main.cpp
     monotonicity-v2.h
+    balance-v2.h
     vcpkg.json
     memento/memento.h
     memento/mementoengine.h

@@ -38,6 +38,7 @@
 #include "csvWriter.h"
 #include "utils.h"
 #include "YamlParser/YamlParser.h"
+#include <vector>
 
  /*
   * Benchmark routine
@@ -45,189 +46,139 @@
 template <typename Algorithm>
 inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
-    uint32_t num_removals, uint32_t num_keys, Balance& balance) {
-#ifdef USE_PCG32
-    pcg_extras::seed_seq_from<std::random_device> seed;
-    pcg32 rng{ seed };
-#else
-    srand(time(NULL));
-#endif
+    uint32_t num_keys, std::size_t iterations, Balance& balance) {
+
     Algorithm engine(anchor_set, working_set);
 
-    // for lb
-    uint32_t* anchor_ansorbed_keys = new uint32_t[anchor_set]{};
+    std::vector<std::vector<uint32_t>> keys_per_node(iterations, std::vector<uint32_t>(working_set));
 
-    // random removals
-    uint32_t* bucket_status = new uint32_t[anchor_set]{};
+    for (std::size_t current_iteration = 0; current_iteration < iterations; ++current_iteration) {
+        const auto random_keys = generate_random_keys_sequence(num_keys);
 
-    for (uint32_t i = 0; i < working_set; i++) {
-        bucket_status[i] = 1;
-    }
+        for (const auto& current_random_key : random_keys) {
+            const auto a = current_random_key.first;
+            const auto b = current_random_key.second;
+            const auto target_node = engine.getBucketCRC32c(a, b);
 
-    uint32_t i = 0;
-    while (i < num_removals) {
-#ifdef  USE_PCG32
-        uint32_t removed = rng() % working_set;
-#else
-        uint32_t removed = rand() % working_set;
-#endif
-        if (bucket_status[removed] == 1) {
-            auto rnode = engine.removeBucket(removed);
-            bucket_status[rnode] = 0; // Remove the actually removed node
-            i++;
+            keys_per_node[current_iteration][target_node]++;
         }
     }
 
-    ////////////////////////////////////////////////////////////////////
-    for (uint32_t i = 0; i < num_keys; ++i) {
-#ifdef USE_PCG32
-        anchor_ansorbed_keys[engine.getBucketCRC32c(rng(), rng())] += 1;
-#else
-        anchor_ansorbed_keys[engine.getBucketCRC32c(rand(), rand())] += 1;
-#endif
-    }
-
-    // check load balancing
-    double mean = (double)num_keys / (working_set - num_removals);
-
-    double lb = 0;
-
-
-    for (uint32_t i = 0; i < anchor_set; i++) {
-        double value = anchor_ansorbed_keys[i];
-
-        if (bucket_status[i]) {
-
-            if (anchor_ansorbed_keys[i] / mean > lb) {
-                lb = anchor_ansorbed_keys[i] / mean;
-            }
-
-        }
-
-        else {
-            if (anchor_ansorbed_keys[i] > 0) {
-                fmt::println("{}: crazy bug!", name);
+    auto find_maxmin = [](const std::vector<uint32_t>& vec, std::function<bool(uint32_t, uint32_t)> compare) {
+        std::size_t maxmin = vec[0];
+        for (const auto& val : vec) {
+            if (compare(val, maxmin)) {
+                maxmin = val;
             }
         }
+        return maxmin;
+        };
+
+    auto calculate_average = [](const std::vector<uint32_t>& vec) {
+        double avg = 0.;
+        for (const auto& value : vec) {
+            avg += value;
+        }
+        return avg / vec.size();
+        };
+
+    std::vector<uint32_t> max_values_per_iteration(iterations);
+    std::vector<uint32_t> min_values_per_iteration(iterations);
+    for (std::size_t idx = 0; idx < iterations; ++idx) {
+        max_values_per_iteration[idx] = find_maxmin(keys_per_node[idx], std::greater<uint32_t>());
+        min_values_per_iteration[idx] = find_maxmin(keys_per_node[idx], std::less<uint32_t>());
     }
 
-
-    // print lb res
-#ifdef USE_PCG32
-    fmt::println("{}: LB is {}\n", name, lb);
-   
-#else
-    fmt::println("{}: LB is {}\n", name, lb);
-    
-#endif
-
-    ////////////////////////////////////////////////////////////////////
-
-    delete[] bucket_status;
-    delete[] anchor_ansorbed_keys;
+    balance.max = calculate_average(max_values_per_iteration);
+    balance.min = calculate_average(min_values_per_iteration);
+    balance.max_percentage = balance.max * working_set / num_keys;
+    balance.min_percentage = balance.min * working_set / num_keys;
+    balance.expected = num_keys / working_set;
 }
 
 
-inline int balance(const std::string& output_path, const AlgorithmSettings& current_algorithm,
-    std::size_t working_set, const std::string& hash_function,
-    const std::string& key_distribution, const std::unordered_map<std::string, std::string>& args,
-    std::size_t total_iterations) {
-
+inline void balance(const std::string& output_path, const BenchmarkSettings& current_benchmark,
+    const std::vector<AlgorithmSettings>& algorithms, std::size_t iterations) {
+    
     std::size_t key_multiplier = 100;
-    if (args.count("keyMultiplier") > 0) {
-        key_multiplier = parse_key_multiplier(args.at("keyMultiplier"));
+    if (current_benchmark.args.count("keyMultiplier") > 0) {
+       key_multiplier = parse_key_multiplier(current_benchmark.args.at("keyMultiplier"));
     }
+    
+    auto& balance_writer = CsvWriter<Balance>::getInstance("./", "balance.csv");
+    
+    for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) { // Done for all benchmarks
+        for (const auto& current_algorithm : algorithms) {
+            for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
+                for (const auto& working_set : current_benchmark.commonSettings.numInitialActiveNodes) {
 
-    Balance balance;
-    balance.distribution = key_distribution;
-    balance.hash_function = hash_function;
-    balance.nodes = working_set;
-    balance.keys = key_multiplier * working_set;
-    balance.expected = balance.keys / working_set;
+                    Balance balance(hash_function, current_algorithm.name, working_set * key_multiplier,
+                        key_distribution, working_set, iterations);
+  
+                    uint32_t capacity = working_set * 10; // default capacity value in yaml = 10
+                    if (current_algorithm.args.contains("capacity")) {
+                        try {
+                            capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
+                        } catch (const std::exception& e) {
+                            std::cerr << "std::stoi exception: " << e.what() << '\n';
+                        }
+                    }
 
-    uint32_t capacity = 10 * working_set; // default capacity = 10
-    if (current_algorithm.args.contains("capacity")) {
-        try {
-            capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-        }
-        catch (const std::exception& e) {
-            std::cerr << "std::stoi exception: " << e.what() << '\n';
-        }
-    }
+                    if (current_algorithm.name == "null") {
+                        return;
+                    }
+                    else if (current_algorithm.name == "anchor") {
+                        bench<AnchorEngine>("Anchor", capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "memento") {
+                        bench<MementoEngine<boost::unordered_flat_map>>(
+                            "Memento<boost::unordered_flat_map>", capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "mementoboost") {
+                        bench<MementoEngine<boost::unordered_map>>(
+                            "Memento<boost::unordered_map>", capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "mementostd") {
+                        bench<MementoEngine<std::unordered_map>>(
+                            "Memento<std::unordered_map>", capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "mementogtl") {
+                        bench<MementoEngine<gtl::flat_hash_map>>(
+                            "Memento<std::gtl::flat_hash_map>", capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "mementomash") {
+                        bench<MementoEngine<MashTable>>("Memento<MashTable>",
+                            capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "jump") {
+                        bench<JumpEngine>("JumpEngine",
+                            capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "power") {
+                        bench<PowerEngine>("PowerEngine",
+                            capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else if (current_algorithm.name == "dx") {
+                        bench<DxEngine>("DxPower", capacity, working_set,
+                            key_multiplier * working_set, iterations, balance);
+                    }
+                    else {
+                        fmt::println("Unknown algorithm {}", current_algorithm.name);
+                    }
 
-    int num_removals = (int)((double)working_set/50.);
-
-    for (std::size_t i = 0; i < 3; ++i) {
-        if (current_algorithm.name == "null") {
-            return 0;
-        }
-        else if (current_algorithm.name == "baseline") {
-            fmt::println("Allocating {} buckets of size {} bytes...", capacity,
-                sizeof(uint32_t));
-            uint32_t* bucket_status = new uint32_t[capacity]();
-            for (uint32_t i = 0; i < working_set; i++) {
-                bucket_status[i] = 1;
-            }
-            uint32_t i = 0;
-            while (i < num_removals) {
-                uint32_t removed = rand() % working_set;
-                if (bucket_status[removed] == 1) {
-                    bucket_status[removed] = 0;
-                    i++;
+                    balance_writer.add(balance);
                 }
             }
-            delete[] bucket_status;
-        }
-        else if (current_algorithm.name == "anchor") {
-            bench<AnchorEngine>("Anchor", capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "memento") {
-            bench<MementoEngine<boost::unordered_flat_map>>(
-                "Memento<boost::unordered_flat_map>", capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "mementoboost") {
-            bench<MementoEngine<boost::unordered_map>>(
-                "Memento<boost::unordered_map>", capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "mementostd") {
-            bench<MementoEngine<std::unordered_map>>(
-                "Memento<std::unordered_map>", capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "mementogtl") {
-            bench<MementoEngine<gtl::flat_hash_map>>(
-                "Memento<std::gtl::flat_hash_map>", capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "mementomash") {
-            bench<MementoEngine<MashTable>>("Memento<MashTable>",
-                capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "jump") {
-            bench<JumpEngine>("JumpEngine",
-                capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "power") {
-            bench<PowerEngine>("PowerEngine",
-                capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else if (current_algorithm.name == "dx") {
-            bench<DxEngine>("DxPower", capacity, working_set,
-                num_removals, key_multiplier * working_set, balance);
-        }
-        else {
-            fmt::println("Unknown algorithm {}", current_algorithm.name);
         }
     }
-    auto& balance_writer = CsvWriter<Balance>::getInstance("./", "balance.csv");
-    balance_writer.add(balance);
-
 }
 
 #endif
