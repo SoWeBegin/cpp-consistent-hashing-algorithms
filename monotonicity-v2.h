@@ -268,8 +268,8 @@ inline void bench(const std::string& name, const std::string file_name,
     count_keys_greater_than_one(bench_results, "moved_to_other_nodes", monotonicity.nodes_gaining_keys);
     count_keys_greater_than_one(bench_results, "relocated_after_resize", monotonicity.nodes_changed_after_resize);
 
-    const auto total_moved_from = bench_results["moved_from_removed_nodes"].size() + bench_results["moved_from_other_nodes"].size();
-    const auto total_moved_to = bench_results["moved_to_restored_nodes"].size() + bench_results["moved_to_other_nodes"].size();
+    const auto total_moved_from = monotonicity.keys_moved_from_other_nodes + monotonicity.keys_moved_from_removed_nodes;
+    const auto total_moved_to = monotonicity.keys_moved_to_restored_nodes + monotonicity.keys_moved_to_other_nodes;
 
     monotonicity.keys_moved_from_other_nodes_percentage = monotonicity.keys_moved_from_other_nodes / static_cast<double>(total_moved_from);
     monotonicity.keys_moved_from_removed_nodes_percentage = monotonicity.keys_moved_from_removed_nodes / static_cast<double>(total_moved_from);
