@@ -7,58 +7,58 @@
 #include <type_traits>
 
 struct Monotonicity {
-	std::string hash_function; // ok
-	std::string algorithm_name; // ok
-	double fraction; //ok
-	std::size_t keys; //ok
-	std::string distribution; //ok
-	std::size_t nodes; //ok
-	std::size_t keys_in_removed_nodes;
-	std::size_t keys_moved_from_removed_nodes;
-	std::size_t keys_moved_from_other_nodes;
-	double nodes_losing_keys;
-	std::size_t keys_moved_to_restored_nodes;
-	std::size_t keys_moved_to_other_nodes;
-	double nodes_gaining_keys;
-	std::size_t keys_relocated_after_resize;
-	std::size_t nodes_changed_after_resize;
-	double keys_moved_from_removed_nodes_percentage;
-	double keys_moved_from_other_nodes_percentage;
-	double nodes_losing_keys_percentage;
-	double keys_moved_to_restored_nodes_percentage;
-	double keys_moved_to_other_nodes_percentage;
-	double nodes_gaining_keys_percentage;
-	double keys_relocated_after_resize_percentage;
-	double nodes_changed_after_resize_percentage;
+	std::string hash_function{};
+	std::string algorithm_name{};
+	double fraction{};
+	std::size_t keys{};
+	std::string distribution{};
+	std::size_t nodes{};
+	std::size_t keys_in_removed_nodes{};
+	std::size_t keys_moved_from_removed_nodes{};
+	std::size_t keys_moved_from_other_nodes{};
+	double nodes_losing_keys{};
+	std::size_t keys_moved_to_restored_nodes{};
+	std::size_t keys_moved_to_other_nodes{};
+	double nodes_gaining_keys{};
+	std::size_t keys_relocated_after_resize{};
+	std::size_t nodes_changed_after_resize{};
+	double keys_moved_from_removed_nodes_percentage{};
+	double keys_moved_from_other_nodes_percentage{};
+	double nodes_losing_keys_percentage{};
+	double keys_moved_to_restored_nodes_percentage{};
+	double keys_moved_to_other_nodes_percentage{};
+	double nodes_gaining_keys_percentage{};
+	double keys_relocated_after_resize_percentage{};
+	double nodes_changed_after_resize_percentage{};
 };
 
 struct Balance {
-	std::string hash_function;
-	std::string algorithm_name;
-	std::size_t keys;
-	std::string distribution;
-	std::size_t nodes;
-	std::size_t iterations;
-	double min;
-	double max;
-	std::size_t expected;
-	double min_percentage;
-	double max_percentage;
+	std::string hash_function{};
+	std::string algorithm_name{};
+	std::size_t keys{};
+	std::string distribution{};
+	std::size_t nodes{};
+	std::size_t iterations{};
+	double min{};
+	double max{};
+	std::size_t expected{};
+	double min_percentage{};
+	double max_percentage{};
 };
 
 struct LookupTime {
-	std::string benchmark;
-	std::string mode;
-	std::size_t threads;
-	std::size_t samples;
-	double score;
-	double score_error;
-	std::string unit;
-	std::string param_algorithm;
-	std::string param_benchmark;
-	std::string param_distribution;
-	std::string param_function;
-	std::size_t param_init_nodes;
+	std::string benchmark{};
+	std::string mode{};
+	std::size_t threads{};
+	std::size_t samples{};
+	double score{};
+	double score_error{};
+	std::string unit{};
+	std::string param_algorithm{};
+	std::string param_benchmark{};
+	std::string param_distribution{};
+	std::string param_function{};
+	std::size_t param_init_nodes{};
 };
 
 template<typename T>

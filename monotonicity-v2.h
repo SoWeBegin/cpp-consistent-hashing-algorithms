@@ -45,6 +45,7 @@ for key in random_key_list :
 #define MONOTONICITY_BENCH_H
 
 #include <algorithm>
+#include <type_traits>
 #include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered_map.hpp>
 #include <cxxopts.hpp>
@@ -69,7 +70,6 @@ for key in random_key_list :
 #include "csvWriter.h"
 #include "utils.h"
 
-// monotonicity: Benchmarks the ability of the algorithm to move the minimal number of keys after a resize.
 
 /*
  * this function generates a sequence of random keys, with key = {random(a), random(b)}
@@ -93,6 +93,30 @@ generate_random_keys_sequence(std::size_t num_keys) {
     return ret;
 }
 
+inline std::unordered_map<std::string, std::vector<uint32_t>>
+initialize_bench_results(std::size_t working_set, std::initializer_list<std::string> init_list) {
+
+    std::unordered_map<std::string, std::vector<uint32_t>> ret;
+    for (auto current : init_list) {
+        ret[current] = std::vector<uint32_t>(working_set);
+    }
+    return ret;
+}
+
+// Utility function to avoid having to repeat the same loops over and over again
+template<typename Map, typename T>
+inline void count_keys_greater_than_one(const Map& results, const std::string& key, T& counter) {
+    static_assert(std::is_same_v<Map, std::unordered_map<std::string, std::vector<uint32_t>>>,
+        "Map type must be std::unordered_map<std::string, std::vector<uint32_t>>");
+    static_assert(std::is_same_v<decltype(++counter), T&>, "Counter type must be incrementable");
+   
+    for (const auto& total_keys : results.at(key)) {
+        if (total_keys >= 1) {
+            ++counter;
+        }
+    }
+}
+
   /*
    * Benchmark routine
    */
@@ -102,22 +126,11 @@ inline void bench(const std::string& name, const std::string file_name,
     uint32_t num_removals, uint32_t num_keys, double current_fraction,
     Monotonicity& monotonicity) {
 
-    uint32_t keys_moved_from_removed_nodes = 0; // OK
-    uint32_t keys_moved_from_other_nodes = 0; // OK
-    uint32_t keys_moved_to_restored_nodes = 0; //OK
-    uint32_t keys_moved_to_other_nodes = 0; // Ok
-    uint32_t nodes_losing_keys = 0;
-    uint32_t nodes_gaining_keys = 0;
-    uint32_t keys_relocated_after_resize = 0;
-    uint32_t nodes_changed_after_resize = 0;
-    uint32_t keys_in_removed_nodes = 0; // OK
-
-    std::vector<uint32_t> keys_per_node;
-    std::vector<uint32_t> moved_from_removed_nodes;
-    std::vector<uint32_t> moved_from_other_nodes;
-    std::vector<uint32_t> moved_to_restored_nodes;
-    std::vector<uint32_t> moved_to_other_nodes;
-
+    auto bench_results = initialize_bench_results(working_set,
+        { "keys_per_node", "moved_from_removed_nodes",
+        "moved_from_other_nodes", "moved_to_restored_nodes",
+        "moved_to_other_nodes", "relocated_after_resize"});
+    
     Algorithm engine(anchor_set, working_set);
 
     // anchor_set = total nodes, not necessarily all used now
@@ -128,31 +141,31 @@ inline void bench(const std::string& name, const std::string file_name,
         nodes[i] = 1; // 1 = working node; 0 = non-working node
     }
 
-    // bucket: represents a map of buckets, then assigned to a given node.
-    // the value of the bucket is the index of the node to which the
-    // respective key is linked to. The key is the "data", which in our case
-    // is a randomly generated key.
-    boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket;
+    // bucket_before_remove: represents the buckets {Key, Value} before removing the nodes.
+    // Key = represents a piece of data that we want to store. In our case, this is a random value.
+    // Value = index of the node to which the Key is linked to, before we remove nodes.
+    boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket_before_remove;
 
     const auto random_keys = generate_random_keys_sequence(num_keys);
 
-    // 1. First, we start by assigning the bucket to the nodes.
-    // Basically we need to link each bucket to a node.
+    // First, we start by linking each key of the bucket to the available nodes.
+    // One node can end up having multiple keys linked to it.
     for (const auto& current_random_number : random_keys) {
         const auto a = current_random_number.first;
         const auto b = current_random_number.second;
-        if (bucket.contains(current_random_number)) {
+        if (bucket_before_remove.contains(current_random_number)) {
             continue; // we found a key that we already inserted
         }
-        // target: index of the node to which we assign this bucket.
+
+        // target_node: index of the node where the key {a,b} will be placed into.
         const auto target_node = engine.getBucketCRC32c(a, b);
 
-        // This bucket is linked to the target node. 
-        // Equivalent to bucket.add(key, value) 
-        // where key=current_random_number and target=index of node
-        // bucket.insert(current_random_number, target_node); => same as insert{Key, Value}
-        bucket[current_random_number] = target_node;
-        keys_per_node[target_node]++;
+        // We link the key {a,b} to the target_node.
+        // Equivalent to bucket.insert(key, value) where key=current_random_number aka {a,b} and target=index of node
+        bucket_before_remove[current_random_number] = target_node;
+
+        // We added a key inside target_node, so we increment the number of keys for target_node.
+        bench_results["keys_per_node"][target_node]++;
 
         // Verify that we got a working node
         if (!nodes[target_node]) {
@@ -161,7 +174,7 @@ inline void bench(const std::string& name, const std::string file_name,
         }
     }
 
-    // 2. Remove num_removals working nodes
+    // Next, we remove num_removals working nodes
     // num_removals: how many nodes we should remove 
     for (std::size_t i = 0; i < num_removals;) {
         // removed = random value, which represents a random node to remove
@@ -171,11 +184,6 @@ inline void bench(const std::string& name, const std::string file_name,
         const uint32_t removed = rand() % working_set;
 #endif
         // check that this node has not been removed yet.
-        // this check is only needed for those algorithms
-        // that support random removals, since they return
-        // the same value (removed) that we passed to removeBucket.
-        // i.e. nodes[removed_node] in such cases is the same as nodes[removed].
-
         if (nodes[removed] == 1) { 
             const auto removed_node = engine.removeBucket(removed);
             if (!nodes[removed_node]) {
@@ -184,100 +192,102 @@ inline void bench(const std::string& name, const std::string file_name,
                 delete[] nodes;
                 throw "Crazy bug";
             }
-            nodes[removed_node] = 0;
+            nodes[removed_node] = 0; // Actually turn off the removed node.
+
+            // We take the total keys inside removed_node and add that to our monotonicity.keys_in_removed_node,
+            // since we are turning this removed_node off.
+            monotonicity.keys_in_removed_nodes += bench_results["keys_per_node"][removed_node]; 
+
             ++i;
-            nodes_losing_keys++;
-            //keys_in_removed_nodes++;
         }
     }
 
-    // Keys in removed nodes: number of keys in nodes to be removed before the removal of the nodes.
-    // Keys moved from removed nodes: number of keys moved from a removed node to another after the removal. Ideally near 1000.
-    // Keys moved from other nodes: number of keys moved from a working node to another node after removal of nodes. Ideally near 0.
+    // bucket_after_remove: represents the buckets {Key, Value} after removing the nodes.
+    // Since we removed some working nodes, we now need to know in which new nodes the keys
+    // of the removed nodes were moved to.
+    boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket_after_remove;
+
+    // Next, we check how many keys were moved from the removed nodes to other nodes
     for (const auto& current_random_number : random_keys) {
         const auto a = current_random_number.first;
         const auto b = current_random_number.second;
-        // ideally we should get the same target as before before.
-        const auto new_target = engine.getBucketCRC32c(a, b);
-        const auto old_target = bucket[current_random_number];
-        
+
+        // We removed some nodes, thus their keys are moved to new nodes. We store the nodes
+        // where the keys were moved to, since we need this information later.
+        bucket_after_remove[current_random_number] = engine.getBucketCRC32c(a, b);
+        const auto target_pos_after_remove = bucket_after_remove[current_random_number];
+        const auto target_pos_before_remove = bucket_before_remove[current_random_number];
   
-        if (new_target != old_target && nodes[old_target] == 0) {
-            // All the keys that were moved from the removed node nodes[old_target].
-            // => KeysMovedFromRemovedNodes
-            //keys_moved_from_removed_nodes++;
-            moved_from_removed_nodes[old_target]++;
+        // The key was moved since the node it came from was removed
+        if (target_pos_after_remove != target_pos_before_remove && !nodes[target_pos_before_remove]) {
+            bench_results["moved_from_removed_nodes"][target_pos_before_remove]++;
+            monotonicity.keys_moved_from_removed_nodes++;
         }
-        else if (new_target == old_target && nodes[old_target] == 0) {
- 
-           
+        // The key remained in the same node, even if we removed that node
+        // This case is not valid: we can't have a key inside a node that was removed
+        else if (target_pos_after_remove == target_pos_before_remove && !nodes[target_pos_before_remove]) {
+            delete[] nodes;
+            throw "Crazy bug";
         }
-        else if (new_target == old_target && nodes[old_target] == 1) {
-
-            
+        // The key remained in the same node, and that node is still active
+        // We don't store this information, but ideally this should always happen, or at least in most cases
+        else if (target_pos_after_remove == target_pos_before_remove && nodes[target_pos_before_remove]) {
         }
-        else if (new_target != old_target && nodes[old_target] == 1) {
-            // Other keys that were moved from the nodes that are still active, nodes[new_target]
-            // => KeysMovedFromOtherNodes
-            //keys_moved_from_other_nodes++;
-            moved_from_other_nodes[old_target]++;
+        // The key was moved even though the node it came from is still active: this should ideally happen sporadically
+        else if (target_pos_after_remove != target_pos_before_remove && nodes[target_pos_before_remove]) {
+            bench_results["moved_from_other_nodes"][target_pos_before_remove]++;
+            monotonicity.keys_moved_from_other_nodes++;
         }
     }
 
-    // Add num_removals nodes back (restore the nodes)
+    // Next, we re-add the nodes that we removed before.
     for (std::size_t i = 0; i < num_removals; ++i) {
-       auto added_node = engine.addBucket();     
-       nodes[added_node] = 1;   // enable node
+       nodes[engine.addBucket()] = 1; 
     }
 
+    // We now want to check which keys are moved back to their original nodes and which aren't.
+    // Ideally, most if not all keys are moved back to their original nodes.
     for (const auto& current_random_number : random_keys) {
         const auto a = current_random_number.first;
         const auto b = current_random_number.second;
-        // ideally we should get the same target as before before.
-        const auto new_target = engine.getBucketCRC32c(a, b);
-        const auto old_target = bucket[current_random_number];
 
-        // readded node and the key doesn't change
-        if (new_target == old_target && nodes[old_target] == 1) {
-            // KeysMovedToRestoreNodes
-            //keys_moved_to_restored_nodes++;
-            nodes_gaining_keys++;
-            moved_to_restored_nodes[old_target]++;
+        const auto target_pos_after_restore = engine.getBucketCRC32c(a, b);
+        const auto target_pos_before_remove = bucket_before_remove[current_random_number];
+        const auto target_pos_after_remove = bucket_after_remove[current_random_number];
+
+        // The key moved from the node where it was after the removal to the newly restored node,
+        // and the newly restored node is the same node that was removed initially
+        // NOTE: we have an additional condition compared to the code in Java (the second one)
+        // since we don't remove the last N nodes, but instead we remove them randomly, and thus have no way
+        // to know whether the keys were moved back to the original nodes or not otherwise
+        if (target_pos_after_restore != target_pos_after_remove && target_pos_after_restore == target_pos_before_remove) {
+            bench_results["moved_to_restored_nodes"][target_pos_after_restore]++; 
+            monotonicity.keys_moved_to_restored_nodes++;
         }
     
-        // readded node and the key change
-        else if (new_target != old_target && nodes[old_target] == 1) {
-            // KeysMovedToOtherNodes
-            //keys_moved_to_other_nodes++;
-            nodes_gaining_keys++;
-            keys_relocated_after_resize++;
-            nodes_changed_after_resize++;
-            moved_to_other_nodes[old_target]++;
+        // The key moved from the node where it was after the removal to the newly restored node,
+        // and the newly restored node is not the same that was removed initially
+        // thus the key was moved to a completely differet node, this should ideally happen sporadically
+        else if (target_pos_after_restore != target_pos_after_remove && target_pos_after_restore != target_pos_before_remove) {
+            bench_results["moved_to_other_nodes"][target_pos_after_restore]++; 
+            monotonicity.keys_moved_to_other_nodes++;
+        }
+
+        // The key moved from the original removed node to a new node, but after that it still holds that
+        // target_pos_after_restore == target_pos_after_remove, and both are different than target_pos_before_remove, 
+        // meaning that the key that was originally in the removed node did not move back to it even after we restored it.
+        else if (target_pos_after_restore != target_pos_before_remove && nodes[target_pos_before_remove]) {
+            bench_results["relocated_after_resize"][target_pos_before_remove]++;
+            monotonicity.keys_relocated_after_resize++;
         }
     }
+ 
 
-    ////////////////////////////////////////////////////////////////////
-    
-    for (auto i : keys_per_node) {
-        monotonicity.keys_in_removed_nodes += i;
-    }
-
-    for (auto i : moved_from_removed_nodes) {
-        monotonicity.keys_moved_from_removed_nodes += i;
-    }
-
-    for (auto i : moved_from_other_nodes) {
-        monotonicity.keys_moved_from_other_nodes += i;
-    }
-
-    for (auto i : moved_to_restored_nodes) {
-        monotonicity.keys_moved_to_restored_nodes += i;
-    }
-
-    for (auto i : moved_to_other_nodes) {
-        monotonicity.keys_moved_to_other_nodes += i;
-    }
-
+    count_keys_greater_than_one(bench_results, "moved_from_removed_nodes", monotonicity.nodes_losing_keys);
+    count_keys_greater_than_one(bench_results, "moved_from_other_nodes", monotonicity.nodes_losing_keys);
+    count_keys_greater_than_one(bench_results, "moved_to_restored_nodes", monotonicity.nodes_gaining_keys);
+    count_keys_greater_than_one(bench_results, "moved_to_other_nodes", monotonicity.nodes_gaining_keys);
+    count_keys_greater_than_one(bench_results, "relocated_after_resize", monotonicity.nodes_changed_after_resize);
 
     delete[] nodes;
 }
