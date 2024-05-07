@@ -79,6 +79,27 @@ struct LookupTime {
 	std::size_t param_init_nodes{};
 };
 
+struct MemoryUsage {
+	std::string type;
+	std::string algorithm{};
+	std::size_t allocations{};
+	std::size_t deallocations{};
+	std::size_t allocated{};
+	std::size_t deallocated{};
+	std::size_t nodes{};
+	std::size_t keys{};
+	std::string hash_function{};
+	std::size_t iterations{};
+	std::size_t maximum{};
+
+	explicit MemoryUsage (const std::string& algorithm, 
+		std::size_t nodes, std::size_t keys, std::size_t iterations, 
+		const std::string& hash_function)
+		: algorithm(algorithm), nodes(nodes), keys(keys),
+		iterations(iterations), hash_function(hash_function)
+	{}
+};
+
 template<typename T>
 class CsvWriter {
 private:
@@ -140,6 +161,22 @@ private:
 			<< "param_distribution,"
 			<< "param_function,"
 			<< "param_init_nodes"
+			<< "\n";
+	}
+
+	template<typename U = T, typename std::enable_if<std::is_same<U, MemoryUsage>::value>::type* = nullptr>
+	void writeHeader() {
+		output_file <<"Type,"
+			<< "Allocations,"
+			<< "Deallocations,"
+			<< "Allocated,"
+			<< "Deallocated,"
+			<< "Maximum,"
+			<< "Algorithm,"
+			<< "Nodes,"
+			<< "Total keys,"
+			<< "Hash function,"
+			<< "Total iterations"
 			<< "\n";
 	}
 
@@ -213,6 +250,29 @@ public:
 				<< t.expected << ','
 				<< t.min_percentage << ','
 				<< t.max_percentage << '\n';
+		}
+		m_cache.clear();
+		output_file.close();
+	}
+
+	template<typename U = T, typename std::enable_if<std::is_same<U, MemoryUsage>::value>::type* = nullptr>
+	void write() {
+		if (!output_file.is_open()) {
+			output_file.open(m_file_path);
+			writeHeader<T>();
+		}
+		for (const auto& t : m_cache) {
+			output_file << t.type << ','
+				<< t.allocations << ','
+				<< t.deallocations << ','
+				<< t.allocated << ','
+				<< t.maximum << ','
+				<< t.algorithm << ','
+				<< t.nodes << ','
+				<< t.keys << ','
+				<< t.hash_function << ','
+				<< t.iterations
+				<< '\n';
 		}
 		m_cache.clear();
 		output_file.close();

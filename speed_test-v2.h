@@ -48,7 +48,7 @@
   * ******************************************
   */
 
-#ifdef USE_HEAPSTATS
+
 static unsigned long allocations{ 0 };
 static unsigned long deallocations{ 0 };
 static unsigned long allocated{ 0 };
@@ -91,12 +91,17 @@ inline void reset_memory_stats() noexcept {
     maximum = 0;
 }
 
-inline void print_memory_stats(std::string_view label) noexcept {
+inline void print_memory_stats(std::string_view label, MemoryUsage& memory_usage) noexcept {
     auto alloc{ allocations };
     auto dealloc{ deallocations };
     auto asize{ allocated };
     auto dsize{ deallocated };
     auto max{ maximum };
+    memory_usage.allocations = alloc;
+    memory_usage.allocated = asize;
+    memory_usage.deallocations = dealloc;
+    memory_usage.deallocated = dsize;
+    memory_usage.maximum = max;
     fmt::println("   @{}: Allocations: {}, Allocated: {}, Deallocations: {}, "
         "Deallocated: {}, Maximum: {}",
         label, alloc, asize, dealloc, dsize, max);
@@ -106,7 +111,6 @@ inline void print_memory_stats(std::string_view label) noexcept {
     deallocated = dsize;
     maximum = max;
 }
-#endif
 
 /*
 * ******************************************
@@ -117,14 +121,17 @@ template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, uint32_t total_iterations,
-    LookupTime& lookup_time, random_distribution_ptr<T> random_fnt) {
+    LookupTime& lookup_time,MemoryUsage& memory_usage, random_distribution_ptr<T> random_fnt) {
 
     uint32_t* nodes = new uint32_t[anchor_set]();
     for (uint32_t i = 0; i < working_set; ++i) {
         nodes[i] = 1;
     }
 
+    reset_memory_stats();
+    print_memory_stats("StartBenchmark", memory_usage);
     Algorithm engine(anchor_set, working_set);
+    print_memory_stats("AfterAlgorithmInit", memory_usage);
 
     // See Monotonicity.h for an explanation of this.
     for (std::size_t i = 0; i < num_removals;) {
@@ -139,21 +146,37 @@ inline void bench(const std::string& name,
             ++i;
         }
     }
+    print_memory_stats("AfterRemovals", memory_usage);
 
-    std::vector<double> results(total_iterations);
+    std::vector<double> results;
     volatile int64_t bucket{ 0 };
-
+    // Lazy initialization of the random functions :
+    // First call is slower because the generator must be initialized, avoid that.
+    volatile uint32_t a = (*random_fnt)();
     for (uint32_t i = 0; i < total_iterations; ++i) { 
         const auto start = std::chrono::high_resolution_clock::now();
-        bucket = engine.getBucketCRC32c((*random_fnt)(), (*random_fnt)());
+        engine.getBucketCRC32c((*random_fnt)(), (*random_fnt)());
         const auto end = std::chrono::high_resolution_clock::now();
         const auto elapsed_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
         results.push_back(elapsed_nanoseconds);
     }
+    print_memory_stats("EndBenchmark", memory_usage);
 
     const double total_elapsed_nanoseconds = std::accumulate(results.begin(), results.end(), 0.0);
     lookup_time.score = total_elapsed_nanoseconds / results.size();
 
+    double sum_squared_diff = 0.0;
+
+    for (double result : results) {
+        double diff = result - lookup_time.score;
+        sum_squared_diff += diff * diff;
+
+    }
+
+    double variance = sum_squared_diff / (results.size() - 1);
+    double standard_deviation = sqrt(variance);
+
+    lookup_time.score_error = standard_deviation / sqrt(results.size());
     delete[] nodes;
 }
 
@@ -192,12 +215,15 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
         fmt::println("Removal order must be one of [lifo, fifo, random]. Continuing with default value removal-order = lifo.");
         removal_order = "lifo";
     }
+    uint32_t total_iterations = common_settings.totalBenchmarkIterations;
     auto& lookuptime_writer = CsvWriter<LookupTime>::getInstance("./", "lookup_time.csv");
+    auto& memory_usage_writer = CsvWriter<MemoryUsage>::getInstance("./", "memory_usage.csv");
     for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) { // Done for all benchmarks
         for (const auto& current_algorithm : algorithms) {
             for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
                 for (const auto& working_set : current_benchmark.commonSettings.numInitialActiveNodes) {
             
+
                     LookupTime lookup_time;
                     lookup_time.param_distribution = key_distribution;
                     lookup_time.param_function = hash_function;
@@ -207,10 +233,16 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     lookup_time.param_benchmark = "lookuptime";
                     lookup_time.benchmark = "speed_test=>bench";
                     lookup_time.param_algorithm = current_algorithm.name;
+                    lookup_time.samples = total_iterations;
+                    lookup_time.threads = 1;
+
+                    MemoryUsage memory_usage(current_algorithm.name, working_set, 0,
+                        total_iterations, hash_function);
+                    
+
 
                     random_distribution_ptr<T> ptr = distribution_function.at(key_distribution);
 
-                    uint32_t total_iterations = common_settings.totalBenchmarkIterations;
 
                     const uint32_t num_removals = static_cast<uint32_t>(removal_rate * working_set);
 
@@ -257,52 +289,53 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     }
                     else if (current_algorithm.name == "anchor") {
                         bench<AnchorEngine>("Anchor", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "memento") {
                         bench<MementoEngine<boost::unordered_flat_map>>(
                             "Memento<boost::unordered_flat_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "mementoboost") {
                         bench<MementoEngine<boost::unordered_map>>(
                             "Memento<boost::unordered_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "mementostd") {
                         bench<MementoEngine<std::unordered_map>>(
                             "Memento<std::unordered_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "mementogtl") {
                         bench<MementoEngine<gtl::flat_hash_map>>(
                             "Memento<std::gtl::flat_hash_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "mementomash") {
                         bench<MementoEngine<MashTable>>("Memento<MashTable>",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "jump") {
                         bench<JumpEngine>("JumpEngine",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "power") {
                         bench<PowerEngine>("PowerEngine",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else if (current_algorithm.name == "dx") {
                         bench<DxEngine>("DxEngine", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time, ptr);
+                            num_removals, working_set, total_iterations, lookup_time, memory_usage, ptr);
                     }
                     else {
                         fmt::println("Unknown algorithm {}", current_algorithm.name);
                     }
 
                     lookuptime_writer.add(lookup_time);
+                    memory_usage_writer.add(memory_usage);
 
                 }
             }
