@@ -77,6 +77,18 @@ struct LookupTime {
 	std::string param_distribution{};
 	std::string param_function{};
 	std::size_t param_init_nodes{};
+
+	explicit LookupTime(const std::string& benchmark, const std::string& mode, 
+		std::size_t threads, std::size_t samples, const std::string& unit,
+		const std::string& param_algorithm, const std::string& param_benchmark,
+		const std::string& param_distribution, const std::string& param_function,
+		std::size_t param_init_nodes)
+		: benchmark(benchmark), mode(mode), threads(threads), samples(samples)
+		, unit(std::move(unit)), param_algorithm(param_algorithm)
+		, param_benchmark(param_benchmark), param_distribution(param_distribution)
+		, param_function(param_function), param_init_nodes(param_init_nodes) 
+	{
+	}
 };
 
 struct MemoryUsage {
@@ -90,14 +102,6 @@ struct MemoryUsage {
 	std::string hash_function{};
 	std::size_t iterations{};
 	std::size_t maximum{};
-
-	explicit MemoryUsage (const std::string& algorithm, 
-		std::size_t nodes, std::size_t iterations, 
-		const std::string& hash_function)
-		: algorithm(algorithm), nodes(nodes)
-		, iterations(iterations), hash_function(hash_function)
-	{
-	}
 };
 
 template<typename T>
