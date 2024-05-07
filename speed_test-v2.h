@@ -92,16 +92,21 @@ inline void reset_memory_stats() noexcept {
 }
 
 inline void print_memory_stats(std::string_view label, MemoryUsage& memory_usage) noexcept {
+
+    static auto& memory_usage_writer = CsvWriter<MemoryUsage>::getInstance("./", "memory_usage.csv");
+
     auto alloc{ allocations };
     auto dealloc{ deallocations };
     auto asize{ allocated };
     auto dsize{ deallocated };
     auto max{ maximum };
+    memory_usage.type = label;
     memory_usage.allocations = alloc;
     memory_usage.allocated = asize;
     memory_usage.deallocations = dealloc;
     memory_usage.deallocated = dsize;
     memory_usage.maximum = max;
+    memory_usage_writer.add(memory_usage);
     fmt::println("   @{}: Allocations: {}, Allocated: {}, Deallocations: {}, "
         "Deallocated: {}, Maximum: {}",
         label, alloc, asize, dealloc, dsize, max);
@@ -121,7 +126,8 @@ template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, uint32_t total_iterations,
-    LookupTime& lookup_time,MemoryUsage& memory_usage, random_distribution_ptr<T> random_fnt) {
+    LookupTime& lookup_time, MemoryUsage& memory_usage,
+    random_distribution_ptr<T> random_fnt) {
 
     uint32_t* nodes = new uint32_t[anchor_set]();
     for (uint32_t i = 0; i < working_set; ++i) {
@@ -170,7 +176,6 @@ inline void bench(const std::string& name,
     for (double result : results) {
         double diff = result - lookup_time.score;
         sum_squared_diff += diff * diff;
-
     }
 
     double variance = sum_squared_diff / (results.size() - 1);
@@ -217,7 +222,6 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
     }
     uint32_t total_iterations = common_settings.totalBenchmarkIterations;
     auto& lookuptime_writer = CsvWriter<LookupTime>::getInstance("./", "lookup_time.csv");
-    auto& memory_usage_writer = CsvWriter<MemoryUsage>::getInstance("./", "memory_usage.csv");
     for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) { // Done for all benchmarks
         for (const auto& current_algorithm : algorithms) {
             for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
@@ -236,13 +240,10 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     lookup_time.samples = total_iterations;
                     lookup_time.threads = 1;
 
-                    MemoryUsage memory_usage(current_algorithm.name, working_set, 0,
+                    MemoryUsage memory_usage(current_algorithm.name, working_set,
                         total_iterations, hash_function);
                     
-
-
                     random_distribution_ptr<T> ptr = distribution_function.at(key_distribution);
-
 
                     const uint32_t num_removals = static_cast<uint32_t>(removal_rate * working_set);
 
@@ -335,8 +336,6 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     }
 
                     lookuptime_writer.add(lookup_time);
-                    memory_usage_writer.add(memory_usage);
-
                 }
             }
         }

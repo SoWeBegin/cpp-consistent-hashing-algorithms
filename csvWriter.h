@@ -87,17 +87,17 @@ struct MemoryUsage {
 	std::size_t allocated{};
 	std::size_t deallocated{};
 	std::size_t nodes{};
-	std::size_t keys{};
 	std::string hash_function{};
 	std::size_t iterations{};
 	std::size_t maximum{};
 
 	explicit MemoryUsage (const std::string& algorithm, 
-		std::size_t nodes, std::size_t keys, std::size_t iterations, 
+		std::size_t nodes, std::size_t iterations, 
 		const std::string& hash_function)
-		: algorithm(algorithm), nodes(nodes), keys(keys),
-		iterations(iterations), hash_function(hash_function)
-	{}
+		: algorithm(algorithm), nodes(nodes)
+		, iterations(iterations), hash_function(hash_function)
+	{
+	}
 };
 
 template<typename T>
@@ -174,7 +174,6 @@ private:
 			<< "Maximum,"
 			<< "Algorithm,"
 			<< "Nodes,"
-			<< "Total keys,"
 			<< "Hash function,"
 			<< "Total iterations"
 			<< "\n";
@@ -266,10 +265,10 @@ public:
 				<< t.allocations << ','
 				<< t.deallocations << ','
 				<< t.allocated << ','
+				<< t.deallocated << ','
 				<< t.maximum << ','
 				<< t.algorithm << ','
 				<< t.nodes << ','
-				<< t.keys << ','
 				<< t.hash_function << ','
 				<< t.iterations
 				<< '\n';
