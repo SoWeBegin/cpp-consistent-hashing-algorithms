@@ -23,9 +23,8 @@ int main(int argc, char* argv[]) {
              balance(commonSettings.outputFolder, current_benchmark, algorithms,
                  commonSettings.totalBenchmarkIterations);
         }
-        
         else if (current_benchmark.name == "lookup-time") {
-            speed_test(commonSettings.outputFolder, current_benchmark, algorithms,
+             speed_test(commonSettings.outputFolder, current_benchmark, algorithms,
                 commonSettings);
         }
     }
