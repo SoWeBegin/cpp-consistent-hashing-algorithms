@@ -6,6 +6,8 @@
 #include "balance-v2.h"
 #include "speed_test-v2.h"
 #include "csvWriter.h"
+#include "utils.h"
+#include "unordered_map"
 
 
 int main(int argc, char* argv[]) {
@@ -14,6 +16,9 @@ int main(int argc, char* argv[]) {
     const auto& algorithms = parser.getAlgorithms();
     const auto& benchmarks = parser.getBenchmarks();
     const auto& commonSettings = parser.getCommonSettings();
+    std::unordered_map<std::string, random_distribution_ptr<uint32_t>> distribution_function;
+    distribution_function["uniform"] = &random_uniform_distribution<uint32_t>;
+    (*distribution_function["uniform"]) ();
 
     for (const auto& current_benchmark : benchmarks) { // Done for all benchmarks in Java
         if (current_benchmark.name == "monotonicity") {
@@ -25,7 +30,7 @@ int main(int argc, char* argv[]) {
         }
         else if (current_benchmark.name == "lookup-time") {
              speed_test(commonSettings.outputFolder, current_benchmark, algorithms,
-                commonSettings);
+                commonSettings, distribution_function);
         }
     }
 

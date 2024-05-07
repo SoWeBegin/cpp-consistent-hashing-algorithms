@@ -39,6 +39,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <gtl/phmap.hpp>
+#include "utils.h"
 
 
  /*
@@ -112,11 +113,11 @@ inline void print_memory_stats(std::string_view label) noexcept {
 * Benchmark routine
 * ******************************************
 */
-template <typename Algorithm>
+template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, uint32_t total_iterations,
-    LookupTime& lookup_time) {
+    LookupTime& lookup_time, random_distribution_ptr<T> random_fnt) {
 
 #ifdef USE_PCG32
     pcg_extras::seed_seq_from<std::random_device> seed;
@@ -158,7 +159,7 @@ inline void bench(const std::string& name,
 #ifdef USE_PCG32
         bucket = engine.getBucketCRC32c(rng(), rng());
 #else
-        bucket = engine.getBucketCRC32c(rand(), rand());
+        bucket = engine.getBucketCRC32c((*random_fnt)(), (*random_fnt)());
 #endif
         const auto end = std::chrono::high_resolution_clock::now();
         const auto elapsed_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
@@ -180,8 +181,10 @@ inline double parse_removal_rate(const std::string& removal_rate_str) {
     return removal_rate;
 }
         
+template<typename T>
 inline void speed_test(const std::string& output_path, const BenchmarkSettings& current_benchmark,
-    const std::vector<AlgorithmSettings>& algorithms, const CommonSettings& common_settings) {
+    const std::vector<AlgorithmSettings>& algorithms, const CommonSettings& common_settings, 
+    const std::unordered_map<std::string, random_distribution_ptr<T>>& distribution_function) {
 
     // Further parse "removal-rate", aka initial nodes to remove.
     double removal_rate{}; // default value = 0, nothing to remove
@@ -209,6 +212,7 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
         for (const auto& current_algorithm : algorithms) {
             for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
                 for (const auto& working_set : current_benchmark.commonSettings.numInitialActiveNodes) {
+            
                     LookupTime lookup_time;
                     lookup_time.param_distribution = key_distribution;
                     lookup_time.param_function = hash_function;
@@ -218,6 +222,8 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     lookup_time.param_benchmark = "lookuptime";
                     lookup_time.benchmark = "speed_test=>bench";
                     lookup_time.param_algorithm = current_algorithm.name;
+
+                    random_distribution_ptr<uint32_t> ptr = distribution_function.at(key_distribution);
 
                     uint32_t total_iterations = common_settings.totalBenchmarkIterations;
 
@@ -266,46 +272,46 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     }
                     else if (current_algorithm.name == "anchor") {
                         bench<AnchorEngine>("Anchor", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "memento") {
                         bench<MementoEngine<boost::unordered_flat_map>>(
                             "Memento<boost::unordered_flat_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "mementoboost") {
                         bench<MementoEngine<boost::unordered_map>>(
                             "Memento<boost::unordered_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "mementostd") {
                         bench<MementoEngine<std::unordered_map>>(
                             "Memento<std::unordered_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "mementogtl") {
                         bench<MementoEngine<gtl::flat_hash_map>>(
                             "Memento<std::gtl::flat_hash_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "mementomash") {
                         bench<MementoEngine<MashTable>>("Memento<MashTable>",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "jump") {
                         bench<JumpEngine>("JumpEngine",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "power") {
                         bench<PowerEngine>("PowerEngine",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else if (current_algorithm.name == "dx") {
                         bench<DxEngine>("DxEngine", capacity, working_set,
-                            num_removals, working_set, total_iterations, lookup_time);
+                            num_removals, working_set, total_iterations, lookup_time, ptr);
                     }
                     else {
                         fmt::println("Unknown algorithm {}", current_algorithm.name);

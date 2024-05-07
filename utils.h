@@ -21,6 +21,12 @@
 #include <vector>
 #include <string>
 #include <utility>
+#include <random>
+#include <type_traits> 
+#include <limits> 
+
+template<typename T>
+using random_distribution_ptr = T(*)();
 
 uint32_t crc32c_sse42_u64(uint64_t key, uint64_t seed);
 
@@ -35,6 +41,15 @@ std::vector<double> parse_fractions(const std::string& fractions_str);
  */
 std::vector<std::pair<uint32_t, uint32_t>>
 generate_random_keys_sequence(std::size_t num_keys);
+
+template<typename T>
+typename std::enable_if<std::is_integral<T>::value, T>::type
+random_uniform_distribution() {
+    static std::random_device rand_dev;
+    static std::mt19937 generator(rand_dev());
+    std::uniform_int_distribution<T> distr(0, std::numeric_limits<T>::max());
+    return distr(generator);
+}
 
 
 #endif // UTILS_H
