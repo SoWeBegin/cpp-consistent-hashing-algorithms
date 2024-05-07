@@ -119,13 +119,6 @@ inline void bench(const std::string& name,
     uint32_t num_removals, uint32_t num_keys, uint32_t total_iterations,
     LookupTime& lookup_time, random_distribution_ptr<T> random_fnt) {
 
-#ifdef USE_PCG32
-    pcg_extras::seed_seq_from<std::random_device> seed;
-    pcg32 rng{ seed };
-#else
-    srand(time(NULL));
-#endif
-
     uint32_t* nodes = new uint32_t[anchor_set]();
     for (uint32_t i = 0; i < working_set; ++i) {
         nodes[i] = 1;
@@ -135,11 +128,7 @@ inline void bench(const std::string& name,
 
     // See Monotonicity.h for an explanation of this.
     for (std::size_t i = 0; i < num_removals;) {
-#ifdef USE_PCG32
-        const uint32_t removed = rng() % working_set;
-#else
-        const uint32_t removed = rand() % working_set;
-#endif
+        const uint32_t removed = (*random_fnt)() % working_set;
         if (nodes[removed] == 1) {
             const auto removed_node = engine.removeBucket(removed);
             if (!nodes[removed_node]) {
@@ -156,11 +145,7 @@ inline void bench(const std::string& name,
 
     for (uint32_t i = 0; i < total_iterations; ++i) { 
         const auto start = std::chrono::high_resolution_clock::now();
-#ifdef USE_PCG32
-        bucket = engine.getBucketCRC32c(rng(), rng());
-#else
         bucket = engine.getBucketCRC32c((*random_fnt)(), (*random_fnt)());
-#endif
         const auto end = std::chrono::high_resolution_clock::now();
         const auto elapsed_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
         results.push_back(elapsed_nanoseconds);
@@ -223,7 +208,7 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     lookup_time.benchmark = "speed_test=>bench";
                     lookup_time.param_algorithm = current_algorithm.name;
 
-                    random_distribution_ptr<uint32_t> ptr = distribution_function.at(key_distribution);
+                    random_distribution_ptr<T> ptr = distribution_function.at(key_distribution);
 
                     uint32_t total_iterations = common_settings.totalBenchmarkIterations;
 

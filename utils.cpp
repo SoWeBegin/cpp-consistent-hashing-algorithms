@@ -53,20 +53,3 @@ std::vector<double> parse_fractions(const std::string& fractions_str) {
     return fractions;
 }
 
-
-std::vector<std::pair<uint32_t, uint32_t>>
-generate_random_keys_sequence(std::size_t num_keys) {
-
-    std::vector<std::pair<uint32_t, uint32_t>> ret;
-    for (uint32_t i = 0; i < num_keys; ++i) {
-#ifdef USE_PCG32
-        const auto a{ rng() };
-        const auto b{ rng() };
-#else
-        const auto a{ rand() };
-        const auto b{ rand() };
-#endif
-        ret.push_back(std::pair<uint32_t, uint32_t>{a, b});
-    }
-    return ret;
-}

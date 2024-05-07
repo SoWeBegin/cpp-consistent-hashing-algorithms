@@ -16,17 +16,22 @@ int main(int argc, char* argv[]) {
     const auto& algorithms = parser.getAlgorithms();
     const auto& benchmarks = parser.getBenchmarks();
     const auto& commonSettings = parser.getCommonSettings();
+
+    // Lazy initialization of the random functions:
+    // First call is slower because the generator must be initialized, avoid that.
+    random_uniform_distribution<uint32_t>();
+
     std::unordered_map<std::string, random_distribution_ptr<uint32_t>> distribution_function;
     distribution_function["uniform"] = &random_uniform_distribution<uint32_t>;
-    (*distribution_function["uniform"]) ();
 
     for (const auto& current_benchmark : benchmarks) { // Done for all benchmarks in Java
         if (current_benchmark.name == "monotonicity") {
-            monotonicity(commonSettings.outputFolder, current_benchmark, algorithms);
+            monotonicity(commonSettings.outputFolder, current_benchmark, algorithms,
+                distribution_function);
         }
         else if (current_benchmark.name == "balance") {
              balance(commonSettings.outputFolder, current_benchmark, algorithms,
-                 commonSettings.totalBenchmarkIterations);
+                 commonSettings.totalBenchmarkIterations, distribution_function);
         }
         else if (current_benchmark.name == "lookup-time") {
              speed_test(commonSettings.outputFolder, current_benchmark, algorithms,

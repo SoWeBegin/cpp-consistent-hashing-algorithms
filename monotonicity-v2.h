@@ -77,11 +77,11 @@ inline void count_keys_greater_than_one(const Map& results, const std::string& k
   /*
    * Benchmark routine
    */
-template <typename Algorithm>
+template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set, std::size_t working_set,
     uint32_t num_removals, uint32_t num_keys, double current_fraction,
-    Monotonicity& monotonicity) {
+    Monotonicity& monotonicity, random_distribution_ptr<T> random_fnt) {
 
     auto bench_results = initialize_bench_results(working_set,
         { "keys_per_node", "moved_from_removed_nodes",
@@ -103,7 +103,7 @@ inline void bench(const std::string& name,
     // Value = index of the node to which the Key is linked to, before we remove nodes.
     boost::unordered_flat_map<std::pair<uint32_t, uint32_t>, uint32_t> bucket_before_remove;
 
-    const auto random_keys = generate_random_keys_sequence(num_keys);
+    const auto random_keys = generate_random_keys_sequence(num_keys, random_fnt);
 
     // First, we start by linking each key of the bucket to the available nodes.
     // One node can end up having multiple keys linked to it.
@@ -136,11 +136,8 @@ inline void bench(const std::string& name,
     // num_removals: how many nodes we should remove 
     for (std::size_t i = 0; i < num_removals;) {
         // removed = random value, which represents a random node to remove
-#ifdef USE_PCG32
-        const uint32_t removed = rng() % working_set;
-#else
-        const uint32_t removed = rand() % working_set;
-#endif
+        const uint32_t removed = (*random_fnt)() % working_set;
+       
         // check that this node has not been removed yet.
         if (nodes[removed] == 1) { 
             const auto removed_node = engine.removeBucket(removed);
@@ -261,9 +258,10 @@ inline void bench(const std::string& name,
     delete[] nodes;
 }
 
-
+template<typename T>
 inline void monotonicity(const std::string& output_path, const BenchmarkSettings& current_benchmark,
-    const std::vector<AlgorithmSettings>& algorithms) {
+    const std::vector<AlgorithmSettings>& algorithms,
+    const std::unordered_map<std::string, random_distribution_ptr<T>>& distribution_functions) {
 
     const auto& fractions = parse_fractions(current_benchmark.args.at("fractions"));
     if (!current_benchmark.args.count("fractions")) {
@@ -292,6 +290,8 @@ inline void monotonicity(const std::string& output_path, const BenchmarkSettings
 
                         Monotonicity monotonicity(hash_function, current_algorithm.name, current_fraction,
                             key_multiplier * working_set, key_distribution, working_set);
+
+                        random_distribution_ptr<T> ptr = distribution_functions.at(key_distribution);
 
                         const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
                         uint32_t capacity = working_set * 10; // default capacity = 10
@@ -326,52 +326,52 @@ inline void monotonicity(const std::string& output_path, const BenchmarkSettings
                         else if (current_algorithm.name == "anchor") {
                             bench<AnchorEngine>("Anchor", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "memento") {
                             bench<MementoEngine<boost::unordered_flat_map>>(
                                 "Memento<boost::unordered_flat_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "mementoboost") {
                             bench<MementoEngine<boost::unordered_map>>(
                                 "Memento<boost::unordered_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "mementostd") {
                             bench<MementoEngine<std::unordered_map>>(
                                 "Memento<std::unordered_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "mementogtl") {
                             bench<MementoEngine<gtl::flat_hash_map>>(
                                 "Memento<std::gtl::flat_hash_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "mementomash") {
                             bench<MementoEngine<MashTable>>("Memento<MashTable>",
                                 capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "jump") {
                             bench<JumpEngine>("JumpEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "power") {
                             bench<PowerEngine>("PowerEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else if (current_algorithm.name == "dx") {
                             bench<DxEngine>("DxEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity);
+                                monotonicity, ptr);
                         }
                         else {
                             fmt::println("Unknown algorithm {}", current_algorithm.name);

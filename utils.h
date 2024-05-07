@@ -39,8 +39,18 @@ std::vector<double> parse_fractions(const std::string& fractions_str);
  * num_keys: total keys to generate randomly
  * return: a vector of keys
  */
+template<typename T>
 std::vector<std::pair<uint32_t, uint32_t>>
-generate_random_keys_sequence(std::size_t num_keys);
+generate_random_keys_sequence(std::size_t num_keys, random_distribution_ptr<T> rand) {
+
+    std::vector<std::pair<uint32_t, uint32_t>> ret;
+    for (uint32_t i = 0; i < num_keys; ++i) {
+        const auto a{ (*rand)() };
+        const auto b{ (*rand)() };
+        ret.push_back(std::pair<uint32_t, uint32_t>{a, b});
+    }
+    return ret;
+}
 
 template<typename T>
 typename std::enable_if<std::is_integral<T>::value, T>::type

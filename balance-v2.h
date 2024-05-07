@@ -43,17 +43,18 @@
  /*
   * Benchmark routine
   */
-template <typename Algorithm>
+template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
-    uint32_t num_keys, std::size_t iterations, Balance& balance) {
+    uint32_t num_keys, std::size_t iterations, Balance& balance,
+    random_distribution_ptr<T> random_fnt) {
 
     Algorithm engine(anchor_set, working_set);
 
     std::vector<std::vector<uint32_t>> keys_per_node(iterations, std::vector<uint32_t>(working_set));
 
     for (std::size_t current_iteration = 0; current_iteration < iterations; ++current_iteration) {
-        const auto random_keys = generate_random_keys_sequence(num_keys);
+        const auto random_keys = generate_random_keys_sequence(num_keys, random_fnt);
 
         for (const auto& current_random_key : random_keys) {
             const auto a = current_random_key.first;
@@ -96,9 +97,10 @@ inline void bench(const std::string& name,
     balance.expected = num_keys / working_set;
 }
 
-
+template<typename T>
 inline void balance(const std::string& output_path, const BenchmarkSettings& current_benchmark,
-    const std::vector<AlgorithmSettings>& algorithms, std::size_t iterations) {
+    const std::vector<AlgorithmSettings>& algorithms, std::size_t iterations,
+    const std::unordered_map<std::string, random_distribution_ptr<T>>& distribution_function) {
     
     std::size_t key_multiplier = 100;
     if (current_benchmark.args.count("keyMultiplier") > 0) {
@@ -114,6 +116,8 @@ inline void balance(const std::string& output_path, const BenchmarkSettings& cur
 
                     Balance balance(hash_function, current_algorithm.name, working_set * key_multiplier,
                         key_distribution, working_set, iterations);
+
+                    random_distribution_ptr<T> ptr = distribution_function.at(key_distribution);
   
                     uint32_t capacity = working_set * 10; // default capacity value in yaml = 10
                     if (current_algorithm.args.contains("capacity")) {
@@ -129,46 +133,46 @@ inline void balance(const std::string& output_path, const BenchmarkSettings& cur
                     }
                     else if (current_algorithm.name == "anchor") {
                         bench<AnchorEngine>("Anchor", capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "memento") {
                         bench<MementoEngine<boost::unordered_flat_map>>(
                             "Memento<boost::unordered_flat_map>", capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "mementoboost") {
                         bench<MementoEngine<boost::unordered_map>>(
                             "Memento<boost::unordered_map>", capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "mementostd") {
                         bench<MementoEngine<std::unordered_map>>(
                             "Memento<std::unordered_map>", capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "mementogtl") {
                         bench<MementoEngine<gtl::flat_hash_map>>(
                             "Memento<std::gtl::flat_hash_map>", capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "mementomash") {
                         bench<MementoEngine<MashTable>>("Memento<MashTable>",
                             capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "jump") {
                         bench<JumpEngine>("JumpEngine",
                             capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "power") {
                         bench<PowerEngine>("PowerEngine",
                             capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else if (current_algorithm.name == "dx") {
                         bench<DxEngine>("DxPower", capacity, working_set,
-                            key_multiplier * working_set, iterations, balance);
+                            key_multiplier * working_set, iterations, balance, ptr);
                     }
                     else {
                         fmt::println("Unknown algorithm {}", current_algorithm.name);
