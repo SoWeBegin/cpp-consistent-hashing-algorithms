@@ -141,7 +141,7 @@ inline void bench(const std::string& name,
         const uint32_t removed = (*random_fnt)() % working_set;
        
         // check that this node has not been removed yet.
-        if (nodes[removed] == 1) { 
+        if (nodes[removed]) { 
             const auto removed_node = engine.removeBucket(removed);
             if (!nodes[removed_node]) {
                 // engine.removeBucket(removed) returned a node that

@@ -57,7 +57,7 @@ inline void bench(const std::string& name,
     Algorithm engine(anchor_set, working_set);
 
     std::vector<double> results;
-    volatile uint32_t bucket = 0;
+    volatile uint32_t removed = 0;
 
     fmt::println("[ResizeTime] Starting benchmark, num iterations: {}", total_iterations);
     // We keep track of both:
@@ -70,8 +70,7 @@ inline void bench(const std::string& name,
         && std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() < total_seconds; ++i) {
 
         const auto start_bench = std::chrono::high_resolution_clock::now();
-        bucket = engine.addBucket();
-        engine.removeBucket(bucket);
+        removed = engine.removeBucket(engine.addBucket());
         const auto end_bench = std::chrono::high_resolution_clock::now();
 
         const auto elapsed_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end_bench - start_bench).count();

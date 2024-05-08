@@ -55,14 +55,14 @@ Ret str_to(const std::string& to_parse, Ret default_value_if_fail) {
  * return: a vector of keys
  */
 template<typename T>
-std::vector<std::pair<uint32_t, uint32_t>>
+std::vector<std::pair<T, T>>
 generate_random_keys_sequence(std::size_t num_keys, random_distribution_ptr<T> rand) {
 
-    std::vector<std::pair<uint32_t, uint32_t>> ret;
-    for (uint32_t i = 0; i < num_keys; ++i) {
+    std::vector<std::pair<T, T>> ret;
+    for (std::size_t i = 0; i < num_keys; ++i) {
         const auto a{ (*rand)() };
         const auto b{ (*rand)() };
-        ret.push_back(std::pair<uint32_t, uint32_t>{a, b});
+        ret.push_back(std::pair<T, T>{a, b});
     }
     return ret;
 }

@@ -18,8 +18,8 @@ int main(int argc, char* argv[]) {
     const auto& benchmarks = parser.getBenchmarks();
     const auto& commonSettings = parser.getCommonSettings();
    
-    std::unordered_map<std::string, random_distribution_ptr<uint32_t>> distribution_function;
-    distribution_function["uniform"] = &random_uniform_distribution<uint32_t>;
+    std::unordered_map<std::string, random_distribution_ptr<uint64_t>> distribution_function;
+    distribution_function["uniform"] = &random_uniform_distribution<uint64_t>;
 
     CsvWriterHandler<Balance, Monotonicity, LookupTime, MemoryUsage, ResizeTime> csv_writer_handler;
     csv_writer_handler.update_get_writer_called<MemoryUsage>();

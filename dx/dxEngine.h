@@ -26,26 +26,21 @@
 class DxEngine final {
 public:
     explicit DxEngine(uint32_t capacity, uint32_t size)
-        : m_size(0) /* addBucket will increment this */, m_capacity(capacity)
+        : m_size(size), m_capacity(capacity)
     {
-        m_failed.resize(m_capacity);
-        m_failed.set(m_size, m_capacity - m_size, true);
-
-        for (uint32_t i = 0; i < size; ++i) {
-            addBucket();
-        }
+        m_failed.resize(m_capacity, 0);
+        m_failed.set(size, m_capacity - size, 1);  
+        m_distribution = std::uniform_int_distribution<uint32_t>(0, m_capacity-1);
     }
 
     uint32_t getBucketCRC32c(uint64_t key, uint64_t seed) {
         auto hashValue = crc32c_sse42_u64(key, seed);
         pcg32 rng;
-        static std::uniform_int_distribution<uint32_t> distribution(0, m_capacity - 1);
         rng.seed(hashValue);
-        uint32_t b = distribution(rng);
-        // quel bucket lo abbiamo rimosso??
-        // ne devo generare un altro
+        uint32_t b = m_distribution(rng);
+        
         while (m_failed.test(b)) {
-            b = distribution(rng); // Trova un bucket non fallito
+            b = m_distribution(rng); // Find bucket that is not failed
         }
         return b;
     }
@@ -87,6 +82,7 @@ private:
     uint32_t m_capacity;
     boost::dynamic_bitset<> m_failed;
     std::deque<uint32_t> m_removed;
+    std::uniform_int_distribution<uint32_t> m_distribution;
 };
 
 
