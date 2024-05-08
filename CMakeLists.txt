@@ -30,8 +30,8 @@ if(WITH_HEAPSTATS)
 endif()
 
 add_executable(cpp-consistent-hashing main.cpp
-    monotonicity-v2.h
-    balance-v2.h
+    monotonicity.h
+    balance.h
     vcpkg.json
     memento/memento.h
     memento/mementoengine.h
@@ -45,13 +45,15 @@ add_executable(cpp-consistent-hashing main.cpp
     power/powerengine.h
     utils.h
     utils.cpp
-    speed_test-v2.h
+    resize_time.h
+    lookup_time.h
     YamlParser/YamlParser.h
 )
 
 enable_testing()
 add_executable(yaml-parser-tests unit_tests/test_yaml_parser.cpp
-    monotonicity-v2.h
+    monotonicity.h
+    balance.h
     vcpkg.json
     memento/memento.h
     memento/mementoengine.h
@@ -65,7 +67,8 @@ add_executable(yaml-parser-tests unit_tests/test_yaml_parser.cpp
     power/powerengine.h
     utils.h
     utils.cpp
-    speed_test-v2.h
+    lookup_time.h
+    resize_time.h
     YamlParser/YamlParser.h)
 
 if(WITH_PCG32)

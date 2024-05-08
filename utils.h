@@ -24,6 +24,7 @@
 #include <random>
 #include <type_traits> 
 #include <limits> 
+#include <charconv> // std::from_chars
 
 template<typename T>
 using random_distribution_ptr = T(*)();
@@ -33,6 +34,20 @@ uint32_t crc32c_sse42_u64(uint64_t key, uint64_t seed);
 std::size_t parse_key_multiplier(const std::string& key_multiplier_str);
 
 std::vector<double> parse_fractions(const std::string& fractions_str);
+
+double convert_ns_to(double ns_time, const std::string& unit);
+
+
+template<typename Ret>
+Ret str_to(const std::string& to_parse, Ret default_value_if_fail) {
+    Ret ret;
+    auto [ptr, ec] = std::from_chars(to_parse.data(), to_parse.data() + to_parse.size(), ret);
+    if (ec != std::errc()) {
+        return default_value_if_fail;
+    }
+    return ret;
+}
+
 
 /*
  * this function generates a sequence of random keys, with key = {random(a), random(b)}

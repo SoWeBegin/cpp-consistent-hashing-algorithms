@@ -41,6 +41,7 @@
 #include <gtl/phmap.hpp>
 #include "utils.h"
 #include <string_view>
+#include <limits>
 
 
  /*
@@ -50,7 +51,7 @@
   */
 
 MemoryUsage memory_usage;
-auto& memory_usage_writer = CsvWriter<MemoryUsage>::getInstance("./", "memory_usage.csv");
+auto& memory_usage_writer = CsvWriter<MemoryUsage>::getInstance();
 static unsigned long allocations{ 0 };
 static unsigned long deallocations{ 0 };
 static unsigned long allocated{ 0 };
@@ -112,20 +113,6 @@ inline void print_memory_stats(std::string_view label) noexcept {
     maximum = memory_usage.maximum;
 }
 
-inline double convert_time(double time, const std::string& unit) {
-    if (unit == "SECONDS") {
-        return time * 1e-9;  
-    }
-    else if (unit == "MILLISECONDS") {
-        return time * 1e-6; 
-    }
-    else if (unit == "MICROSECONDS") {
-        return time * 1e-3;  
-    }
-    // assume time is already in NANOSECONDS
-    return time;
-}
-
 /*
 * ******************************************
 * Benchmark routine
@@ -134,8 +121,8 @@ inline double convert_time(double time, const std::string& unit) {
 template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set /* capacity */, std::size_t working_set,
-    uint32_t num_removals, uint32_t num_keys, uint32_t total_iterations,
-    uint32_t total_seconds,  LookupTime& lookup_time, random_distribution_ptr<T> random_fnt,
+    uint32_t num_removals, uint32_t total_iterations, uint32_t total_seconds, 
+    LookupTime& lookup_time, random_distribution_ptr<T> random_fnt,
     const std::string& removal_order, const std::string& time_unit) {
 
     uint32_t* nodes = new uint32_t[anchor_set]();
@@ -149,7 +136,7 @@ inline void bench(const std::string& name,
     print_memory_stats("AfterAlgorithmInit");
 
     if (num_removals) {
-        fmt::println("[INFO] Starting to remove {} nodes, with removal order: {}", 
+        fmt::println("[LookupTime] Starting to remove {} nodes, with removal order: {}", 
             num_removals, removal_order);
     }
 
@@ -172,12 +159,12 @@ inline void bench(const std::string& name,
     }
     print_memory_stats("AfterRemovals");
 
-    // Lazy initialization of the random functions :
-    // First call is slower because the generator must be initialized, we want to avoid that
+    // Lazy initialization of the specified random function
+    // First call is slower because the random number generator must be initialized, we want to avoid that
     volatile uint32_t lazy_init = (*random_fnt)();
 
     std::vector<double> results;
-    volatile int64_t bucket = 0;
+    volatile uint32_t bucket = 0;
 
     // We keep track of both:
     //  - how many seconds the bench should last at max (time.execution)
@@ -188,7 +175,7 @@ inline void bench(const std::string& name,
     for (std::size_t i = 0; i < total_iterations
         && std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() < total_seconds; ++i) {
         const auto start_bench = std::chrono::high_resolution_clock::now();
-        engine.getBucketCRC32c((*random_fnt)(), (*random_fnt)());
+        bucket = engine.getBucketCRC32c((*random_fnt)(), (*random_fnt)());
         const auto end_bench = std::chrono::high_resolution_clock::now();
 
         const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end_bench - start_bench).count();
@@ -198,47 +185,50 @@ inline void bench(const std::string& name,
     }
     print_memory_stats("EndBenchmark");
 
+    // We need to find the total elapsed time to find the average elapsed time
+    // which is lookup_time.score.
     double total_elapsed_time = 0.0;
     for (double result : results) {
-        total_elapsed_time += convert_time(result, time_unit);
+        total_elapsed_time += convert_ns_to(result, time_unit);
     }
-
     lookup_time.score = total_elapsed_time / results.size();
 
+    // We then need to calculate the standard deviation
+    // to find the error score, which is lookuptime_score.error.
     double sum_squared_diff = 0.0;
     for (double result : results) {
-        const double adjusted_result = convert_time(result, time_unit);
+        const double adjusted_result = convert_ns_to(result, time_unit);
         const double diff = adjusted_result - lookup_time.score;
         sum_squared_diff += diff * diff;
     }
-    const double variance = sum_squared_diff / (results.size() - 1);
-    lookup_time.score_error = sqrt(variance) / sqrt(results.size());
+
+    // We cannot assume that results.size() == 1, otherwise this won't work even though it should,
+    // since having one single iteration is a valid setting.
+    if (results.size() != 1) {
+        const double variance = sum_squared_diff / (results.size() - 1);
+        lookup_time.score_error = sqrt(variance) / sqrt(results.size());
+    }
+    else {
+        lookup_time.score_error = std::numeric_limits<double>::quiet_NaN();
+    }
 
     delete[] nodes;
 }
-
-inline double parse_removal_rate(const std::string& removal_rate_str) {
-    std::istringstream iss(removal_rate_str);
-    double removal_rate;
-    if (!(iss >> removal_rate)) {
-        return 0.;
-    }
-    return removal_rate;
-}
         
 template<typename T>
-inline void speed_test(const std::string& output_path, const BenchmarkSettings& current_benchmark,
+inline void speed_test(CsvWriter<LookupTime>& lookuptime_writer,
+    const std::string& output_path, const BenchmarkSettings& current_benchmark,
     const std::vector<AlgorithmSettings>& algorithms, const CommonSettings& common_settings, 
     const std::unordered_map<std::string, random_distribution_ptr<T>>& distribution_function) {
 
     // Further parse "removal-rate", aka initial nodes to remove.
     double removal_rate{}; // default value = 0, nothing to remove
     if (current_benchmark.args.count("removal-rate")) {
-        removal_rate = parse_removal_rate(current_benchmark.args.at("removal-rate"));
+        removal_rate = str_to<double>(current_benchmark.args.at("removal-rate"), 0); 
     }
     // Sanity check
     if (removal_rate < 0 || removal_rate >= 1) {
-        fmt::println("Removal rate must be in the range [0, 1[. Continuing with default value removal-rate = 0.");
+        fmt::println("[LookupTime] Removal rate must be in the range [0, 1[. Continuing with default value removal-rate = 0.");
         removal_rate = 0;
     }
 
@@ -249,7 +239,7 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
     }
     // Sanity check
     if (removal_order != "lifo" && removal_order != "fifo" && removal_order != "random") {
-        fmt::println("Removal order must be one of [lifo, fifo, random]. Continuing with default value removal-order = lifo.");
+        fmt::println("[LookupTime] Removal order must be one of [lifo, fifo, random]. Continuing with default value removal-order = lifo.");
         removal_order = "lifo";
     }
 
@@ -257,8 +247,6 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
     const uint32_t total_seconds = common_settings.secondsForEachIteration;
     const std::string time_unit = common_settings.unit;
     memory_usage.iterations = common_settings.totalBenchmarkIterations;
-
-    auto& lookuptime_writer = CsvWriter<LookupTime>::getInstance("./", "lookup_time.csv");
 
     for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) {
         for (const auto& current_algorithm : algorithms) {
@@ -274,105 +262,80 @@ inline void speed_test(const std::string& output_path, const BenchmarkSettings& 
                     memory_usage.hash_function = hash_function;
                     
                     random_distribution_ptr<T> random_gen_fnt_ptr;
-                    if (distribution_function.count(key_distribution) > 0) {
+                    if (distribution_function.count(key_distribution)) {
                         random_gen_fnt_ptr = distribution_function.at(key_distribution);
                     }
                     else {
-                        fmt::println("The specified distribution is not available. Proceeding with default UNIFORM");
+                        fmt::println("[LookupTime] The specified distribution is not available. Proceeding with default UNIFORM");
                         random_gen_fnt_ptr = distribution_function.at("uniform");
                     }
 
-                    uint32_t capacity = working_set * 10; // default capacity = 10
-                    if (current_algorithm.args.contains("capacity")) {
-                        try {
-                            capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-                        }
-                        catch (const std::exception& e) {
-                            std::cerr << "std::stoi exception: " << e.what() << '\n';
-                        }
+                    uint32_t capacity = working_set * 10; // default = 10
+                    if (current_algorithm.args.count("capacity")) {
+                        capacity = str_to<uint32_t>(current_algorithm.args.at("capacity"), 10) * working_set;
                     }
 
                     const uint32_t num_removals = static_cast<uint32_t>(removal_rate * working_set);
 
-                    if (current_algorithm.name == "null") {
-                        return;
-                    }
-                    else if (current_algorithm.name == "baseline") {
-                        fmt::println("Allocating {} buckets of size {} bytes...", capacity,
-                            sizeof(uint32_t));
-                        uint32_t* bucket_status = new uint32_t[capacity]();
-                        for (uint32_t i = 0; i < working_set; i++) {
-                            bucket_status[i] = 1;
-                        }
-                        uint32_t i = 0;
-                        while (i < num_removals) {
-                            uint32_t removed = (*random_gen_fnt_ptr)() % working_set;
-                            if (bucket_status[removed] == 1) {
-                                bucket_status[removed] = 0;
-                                i++;
-                            }
-                        }
-                        delete[] bucket_status;
-                    }
-                    else if (current_algorithm.name == "anchor") {
+                    if (current_algorithm.name == "anchor") {
                         bench<AnchorEngine>("Anchor", capacity, working_set,
-                            num_removals, working_set, total_iterations, total_seconds, 
+                            num_removals, total_iterations, total_seconds, 
                             lookup_time, random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "memento") {
                         bench<MementoEngine<boost::unordered_flat_map>>(
                             "Memento<boost::unordered_flat_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, total_seconds,
+                            num_removals, total_iterations, total_seconds,
                             lookup_time, random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "mementoboost") {
                         bench<MementoEngine<boost::unordered_map>>(
                             "Memento<boost::unordered_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, total_seconds,
+                            num_removals, total_iterations, total_seconds,
                             lookup_time, random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "mementostd") {
                         bench<MementoEngine<std::unordered_map>>(
                             "Memento<std::unordered_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, total_seconds,
+                            num_removals, total_iterations, total_seconds,
                             lookup_time, random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "mementogtl") {
                         bench<MementoEngine<gtl::flat_hash_map>>(
                             "Memento<std::gtl::flat_hash_map>", capacity, working_set,
-                            num_removals, working_set, total_iterations, 
+                            num_removals, total_iterations, 
                             total_seconds, lookup_time,
                             random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "mementomash") {
                         bench<MementoEngine<MashTable>>("Memento<MashTable>",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, 
+                            num_removals, total_iterations, 
                             total_seconds, lookup_time,
                             random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "jump") {
                         bench<JumpEngine>("JumpEngine",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations,
+                            num_removals, total_iterations,
                             total_seconds, lookup_time,
                             random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "power") {
                         bench<PowerEngine>("PowerEngine",
                             capacity, working_set,
-                            num_removals, working_set, total_iterations, 
+                            num_removals, total_iterations, 
                             total_seconds, lookup_time,
                             random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else if (current_algorithm.name == "dx") {
                         bench<DxEngine>("DxEngine", capacity, working_set,
-                            num_removals, working_set, total_iterations, 
+                            num_removals, total_iterations, 
                             total_seconds, lookup_time,
                             random_gen_fnt_ptr, removal_order, time_unit);
                     }
                     else {
-                        fmt::println("Unknown algorithm {}", current_algorithm.name);
+                        fmt::println("[LookupTime] Unknown algorithm {}", current_algorithm.name);
                     }
 
                     lookuptime_writer.add(lookup_time);

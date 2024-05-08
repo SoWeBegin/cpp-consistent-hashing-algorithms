@@ -3,8 +3,11 @@
 #include <vector>
 #include <string>
 #include <fstream>
-#include <filesystem>
 #include <type_traits>
+#include <filesystem>
+#include <typeinfo>
+#include <functional>
+
 
 struct Monotonicity {
 	std::string hash_function{};
@@ -84,9 +87,32 @@ struct LookupTime {
 		const std::string& param_distribution, const std::string& param_function,
 		std::size_t param_init_nodes)
 		: benchmark(benchmark), mode(mode), threads(threads), samples(samples)
-		, unit(std::move(unit)), param_algorithm(param_algorithm)
+		, unit(unit), param_algorithm(param_algorithm)
 		, param_benchmark(param_benchmark), param_distribution(param_distribution)
 		, param_function(param_function), param_init_nodes(param_init_nodes) 
+	{
+	}
+};
+
+struct ResizeTime {
+	std::string benchmark{};
+	std::string mode{};
+	std::size_t threads{};
+	std::size_t samples{};
+	double score{};
+	double score_error{};
+	std::string unit{};
+	std::string param_algorithm{};
+	std::string param_function{};
+	std::size_t param_init_nodes{};
+
+	explicit ResizeTime(const std::string& benchmark, const std::string& mode,
+		std::size_t threads, std::size_t samples, const std::string& unit,
+		const std::string& param_algorithm,const std::string& param_function,
+		std::size_t param_init_nodes)
+		: benchmark(benchmark), mode(mode), threads(threads), samples(samples)
+		, unit(unit), param_algorithm(param_algorithm)
+		, param_function(param_function), param_init_nodes(param_init_nodes)
 	{
 	}
 };
@@ -111,101 +137,74 @@ private:
 	std::ofstream output_file;
 	std::filesystem::path m_file_path;
 
-	explicit CsvWriter(const std::filesystem::path& directory, const std::string& file_name)
-		: m_file_path{ directory / file_name }
-	{
-	}
+	CsvWriter() = default;
 
 public:
-	static CsvWriter<T>& getInstance(const std::filesystem::path& directory, const std::string& file_name) {
-		static CsvWriter<T> instance(directory, file_name);
+	static CsvWriter<T>& getInstance() {
+		static CsvWriter<T> instance;
 		return instance;
 	}
 
 private:
 	template<typename U = T, typename std::enable_if<std::is_same<U, Monotonicity>::value>::type* = nullptr>
 	void writeHeader() {
-		output_file << "hash_function,"
-			<< "algorithm_name,"
-			<< "fraction,"
-			<< "keys,"
-			<< "distribution,"
-			<< "nodes,"
-			<< "keys_in_removed_nodes,"
-			<< "keys_moved_from_removed_nodes,"
-			<< "keys_moved_from_other_nodes,"
-			<< "nodes_losing_keys,"
-			<< "keys_moved_to_restored_nodes,"
-			<< "keys_moved_to_other_nodes,"
-			<< "nodes_gaining_keys,"
-			<< "keys_relocated_after_resize,"
-			<< "nodes_changed_after_resize,"
-			<< "keys_moved_from_removed_nodes_percentage,"
-			<< "keys_moved_from_other_nodes_percentage,"
-			<< "nodes_losing_keys_percentage,"
-			<< "keys_moved_to_restored_nodes_percentage,"
-			<< "keys_moved_to_other_nodes_percentage,"
-			<< "nodes_gaining_keys_percentage,"
-			<< "keys_relocated_after_resize_percentage,"
-			<< "nodes_changed_after_resize_percentage"
+		output_file << "Hash Function,"
+			<< "Algorithm,"
+			<< "Fraction,"
+			<< "Keys,"
+			<< "Distribution,"
+			<< "Initial Nodes,"
+			<< "KeysInRemovedNodes,"
+			<< "KeysMovedFromRemovedNodes,"
+			<< "KeysMovedFromOtherNodes,"
+			<< "NodesLosingKeys,"
+			<< "KeysMovedToRestoredNodes,"
+			<< "KeysMovedToOtherNodes,"
+			<< "NodesGainingKeys,"
+			<< "KeysRelocatedAfterResize,"
+			<< "NodesChangedAfterResize,"
+			<< "KeysMovedFromRemovedNodes%,"
+			<< "KeysMovedFromOtherNodes%,"
+			<< "NodesLosingKeys%,"
+			<< "KeysMovedToRestoredNodes%,"
+			<< "KeysMovedToOtherNodes%,"
+			<< "NodesGainingKeys%,"
+			<< "KeysRelocatedAfterResize%,"
+			<< "NodesChangedAfterResize%"
 			<< '\n';
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, LookupTime>::value>::type* = nullptr>
 	void writeHeader() {
-		output_file << "benchmark,"
-			<< "mode,"
-			<< "threads,"
-			<< "samples,"
-			<< "score,"
-			<< "score_error,"
-			<< "unit,"
-			<< "param_algorithm,"
-			<< "param_benchmark,"
-			<< "param_distribution,"
-			<< "param_function,"
-			<< "param_init_nodes"
-			<< "\n";
+		output_file << "Benchmark, Mode, Threads, Samples, Score, Score Error (stddev), Unit, Algorithm,"
+			<< "Benchmark, Distribution, Hash Function, Initial Nodes\n";
+	}
+
+	template<typename U = T, typename std::enable_if<std::is_same<U, ResizeTime>::value>::type* = nullptr>
+	void writeHeader() {
+		output_file << "Benchmark, Mode, Threads, Samples, Score, Score Error (stddev), Unit, Algorithm,"
+			<< "Hash Function, Initial Nodes\n";
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, MemoryUsage>::value>::type* = nullptr>
 	void writeHeader() {
-		output_file <<"Type,"
-			<< "Allocations,"
-			<< "Deallocations,"
-			<< "Allocated,"
-			<< "Deallocated,"
-			<< "Maximum,"
-			<< "Algorithm,"
-			<< "Nodes,"
-			<< "Hash function,"
-			<< "Total iterations"
-			<< "\n";
+		output_file << "Type, Allocations, Deallocations, Allocated, Deallocated, Maximum,"
+			<< "Algorithm, Nodes, Hash Function, Total Iterations\n";
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, Balance>::value>::type* = nullptr>
 	void writeHeader() {
-		output_file << "hash_function,"
-			<< "algorithm_name,"
-			<< "keys,"
-			<< "distribution,"
-			<< "nodes,"
-			<< "iterations,"
-			<< "min,"
-			<< "max,"
-			<< "expected,"
-			<< "min_percentage,"
-			<< "max_percentage"
-			<< "\n";
+		output_file << "Hash Function, Algorithm, Keys, Distribution, InitialNodes, TotalIterations, Min,"
+			<< "Max, Expected, Min%, Max%\n";
 	}
 
 public:
 	template<typename U = T, typename std::enable_if<std::is_same<U, Monotonicity>::value>::type* = nullptr>
-	void write() {
-		if (!output_file.is_open()) {
-			output_file.open(m_file_path);
-			writeHeader<T>();
-		}
+	void write(const std::filesystem::path& directory) {
+
+		m_file_path = directory / "Monotonicity.csv";
+		open_file_if_closed();
+
 		for (const auto& t : m_cache) {
 			output_file << t.hash_function << ','
 				<< t.algorithm_name << ','
@@ -236,11 +235,10 @@ public:
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, Balance>::value>::type* = nullptr>
-	void write() {
-		if (!output_file.is_open()) {
-			output_file.open(m_file_path);
-			writeHeader<T>();
-		}
+	void write(const std::filesystem::path& directory) {
+		m_file_path = directory / "Balance.csv";
+		open_file_if_closed();
+
 		for (const auto& t : m_cache) {
 			output_file << t.hash_function << ','
 				<< t.algorithm_name << ','
@@ -259,11 +257,10 @@ public:
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, MemoryUsage>::value>::type* = nullptr>
-	void write() {
-		if (!output_file.is_open()) {
-			output_file.open(m_file_path);
-			writeHeader<T>();
-		}
+	void write(const std::filesystem::path& directory) {
+		m_file_path = directory / "MemoryUsage.csv";
+		open_file_if_closed();
+
 		for (const auto& t : m_cache) {
 			output_file << t.type << ','
 				<< t.allocations << ','
@@ -282,11 +279,10 @@ public:
 	}
 
 	template<typename U = T, typename std::enable_if<std::is_same<U, LookupTime>::value>::type* = nullptr>
-	void write() {
-		if (!output_file.is_open()) {
-			output_file.open(m_file_path);
-			writeHeader<T>();
-		}
+	void write(const std::filesystem::path& directory) {
+		m_file_path = directory / "LookupTime.csv";
+		open_file_if_closed();
+
 		for (const auto& t : m_cache) {
 			output_file << t.benchmark << ','
 				<< t.mode << ','
@@ -305,8 +301,82 @@ public:
 		output_file.close();
 	}
 
+	template<typename U = T, typename std::enable_if<std::is_same<U, ResizeTime>::value>::type* = nullptr>
+	void write(const std::filesystem::path& directory) {
+		m_file_path = directory / "ResizeTime.csv";
+		open_file_if_closed();
+
+		for (const auto& t : m_cache) {
+			output_file << t.benchmark << ','
+				<< t.mode << ','
+				<< t.threads << ','
+				<< t.samples << ','
+				<< t.score << ','
+				<< t.score_error << ','
+				<< t.unit << ','
+				<< t.param_algorithm << ','
+				<< t.param_function << ','
+				<< t.param_init_nodes << "\n";
+		}
+		m_cache.clear();
+		output_file.close();
+	}
+
 	constexpr void add(const T& t) {
 		m_cache.push_back(t);
+	}
+
+	private:
+		void open_file_if_closed() {
+			if (!output_file.is_open()) {
+				output_file.open(m_file_path);
+				writeHeader<T>();
+			}
+		}
+};
+
+
+template<typename... Ts>
+class CsvWriterHandler {
+private:
+	bool get_writer_called[sizeof...(Ts)]{};
+
+public:
+	template<typename T>
+	CsvWriter<T>& get_writer() {
+		update_get_writer_called<T>();
+		return CsvWriter<T>::getInstance();
+	}
+
+	void write_all(const std::filesystem::path& directory) {
+		(write_if_tracked<Ts>(directory), ...);
+	}
+
+	template<typename T>
+	void update_get_writer_called() {
+		std::size_t index = find_type_index<T, Ts...>();
+		if (index < sizeof...(Ts)) {
+			get_writer_called[index] = true;
+		}
+	}
+
+private:
+	template<typename T>
+	void write_if_tracked(const std::filesystem::path& directory) {
+		std::size_t index = find_type_index<T, Ts...>();
+		if (index < sizeof...(Ts)) {
+			if (get_writer_called[index]) {
+				get_writer<T>().write(directory);
+			}
+		}
+	}
+
+	template <typename T, typename... Us>
+	std::size_t find_type_index() {
+		std::size_t index = 0;
+		// Short circuiting (note: ++ has higher precedence than !)
+		(... or (std::is_same_v<T, Us> or !++index));
+		return index;
 	}
 };
 

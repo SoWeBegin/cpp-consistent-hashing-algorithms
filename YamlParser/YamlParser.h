@@ -313,9 +313,7 @@ public:
       std::cout << std::endl;
 
       std::cout << "Arguments:" << std::endl;
-      for (const auto &arg : benchmark.args) {
-        std::cout << arg.first << ": " << arg.second << std::endl;
-      }
+      
       std::cout << std::endl;
     }
   }

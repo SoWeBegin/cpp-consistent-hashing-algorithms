@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Amos Brocco.
+ * Copyright (c) 2023 Amos Brocco, Tony Kolarek, Tatiana Dal Busco
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,5 +51,15 @@ std::vector<double> parse_fractions(const std::string& fractions_str) {
         iss.ignore();
     }
     return fractions;
+}
+
+double convert_ns_to(double ns_time, const std::string& new_unit) {
+    if (new_unit == "SECONDS")
+        return ns_time * 1e-9;
+    else if (new_unit == "MILLISECONDS")
+        return ns_time * 1e-6;
+    else if (new_unit == "MICROSECONDS")
+        return ns_time * 1e-3;
+    return ns_time;
 }
 

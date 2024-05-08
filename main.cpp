@@ -2,9 +2,10 @@
 #include "YamlParser/YamlParser.h"
 #include <filesystem>
 #include <fstream>
-#include "monotonicity-v2.h"
-#include "balance-v2.h"
-#include "speed_test-v2.h"
+#include "monotonicity.h"
+#include "balance.h"
+#include "lookup_time.h"
+#include "resize_time.h"
 #include "csvWriter.h"
 #include "utils.h"
 #include "unordered_map"
@@ -17,36 +18,34 @@ int main(int argc, char* argv[]) {
     const auto& benchmarks = parser.getBenchmarks();
     const auto& commonSettings = parser.getCommonSettings();
    
-
     std::unordered_map<std::string, random_distribution_ptr<uint32_t>> distribution_function;
     distribution_function["uniform"] = &random_uniform_distribution<uint32_t>;
 
-    
+    CsvWriterHandler<Balance, Monotonicity, LookupTime, MemoryUsage, ResizeTime> csv_writer_handler;
+    csv_writer_handler.update_get_writer_called<MemoryUsage>();
+
     for (const auto& current_benchmark : benchmarks) { // Done for all benchmarks in Java
         if (current_benchmark.name == "monotonicity") {
-            monotonicity(commonSettings.outputFolder, current_benchmark, algorithms,
+            monotonicity(csv_writer_handler.get_writer<Monotonicity>(), 
+                commonSettings.outputFolder, current_benchmark, algorithms,
                 distribution_function);
         }
         else if (current_benchmark.name == "balance") {
-             balance(commonSettings.outputFolder, current_benchmark, algorithms,
+             balance(csv_writer_handler.get_writer<Balance>(), 
+                 commonSettings.outputFolder, current_benchmark, algorithms,
                  commonSettings.totalBenchmarkIterations, distribution_function);
         }
         else if (current_benchmark.name == "lookup-time") {
-             speed_test(commonSettings.outputFolder, current_benchmark, algorithms,
+             speed_test(csv_writer_handler.get_writer<LookupTime>(), 
+                 commonSettings.outputFolder, current_benchmark, algorithms,
                 commonSettings, distribution_function);
+        }
+        else if (current_benchmark.name == "resize-time") {
+            resize_time(csv_writer_handler.get_writer<ResizeTime>(),
+                commonSettings.outputFolder, current_benchmark, algorithms,
+                commonSettings);
         }
     }
 
-      
-    auto& balance_writer = CsvWriter<Balance>::getInstance("./", "balance.csv");
-    balance_writer.write();
-    auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
-    monotonicity_writer.write();
-    auto& lookuptime_writer = CsvWriter<LookupTime>::getInstance("./", "lookup_time.csv");
-    lookuptime_writer.write();
-    auto& memory_usage_writer = CsvWriter<MemoryUsage>::getInstance("./", "memory_usage.csv");
-    memory_usage_writer.write();
-    // TODO:
-    // For each specified benchmark, call the corresponding bench function. Do that for each specified algorithm
-    
+    csv_writer_handler.write_all("./");
 }

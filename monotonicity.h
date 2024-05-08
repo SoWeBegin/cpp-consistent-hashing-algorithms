@@ -74,9 +74,11 @@ inline void count_keys_greater_than_one(const Map& results, const std::string& k
     }
 }
 
-  /*
-   * Benchmark routine
-   */
+/*
+* ******************************************
+* Benchmark routine
+* ******************************************
+*/
 template <typename Algorithm, typename T>
 inline void bench(const std::string& name,
     std::size_t anchor_set, std::size_t working_set,
@@ -259,123 +261,114 @@ inline void bench(const std::string& name,
 }
 
 template<typename T>
-inline void monotonicity(const std::string& output_path, const BenchmarkSettings& current_benchmark,
+inline void monotonicity(CsvWriter<Monotonicity>& monotonicity_writer,
+    const std::string& output_path, const BenchmarkSettings& current_benchmark,
     const std::vector<AlgorithmSettings>& algorithms,
     const std::unordered_map<std::string, random_distribution_ptr<T>>& distribution_functions) {
 
+    // Safety checks. If the following conditions aren't met then we cannot safely
+    // proceed with the bench of Monotonicity. We avoid throwing so that other benchmarks
+    // can still run even if this one fails.
     const auto& fractions = parse_fractions(current_benchmark.args.at("fractions"));
     if (!current_benchmark.args.count("fractions")) {
-        fmt::println("no fractions key found in the yaml file.");
+        fmt::println("[Monotonicity] no fractions key found in the yaml file, which is mandatory.");
+        return;
     }
-    if (fractions.size() < 1) {
-        fmt::println("fractions must have at least 1 value");
+    if (fractions.empty()) {
+        fmt::println("[Monotonicity] fractions must have at least 1 value.");
+        return;
     }
     for (double current_fraction : fractions) {
         if (current_fraction >= 0 && current_fraction < 1) continue;
-        fmt::println("fraction values must be >= 0 and < 1");
+        fmt::println("[Monotonicity] fraction values must be >= 0 and < 1");
+        return;
     }
 
-    std::size_t key_multiplier = 100;
-    if (current_benchmark.args.count("keyMultiplier") > 0) {
-        key_multiplier = parse_key_multiplier(current_benchmark.args.at("keyMultiplier"));
+    uint32_t key_multiplier = 100;
+    if (current_benchmark.args.count("keyMultiplier")) {
+        key_multiplier = str_to<uint32_t>(current_benchmark.args.at("keyMultiplier"), 100);
     }
-
-    auto& monotonicity_writer = CsvWriter<Monotonicity>::getInstance("./", "monotonicity.csv");
 
     for (double current_fraction : fractions) {
         for (const auto& hash_function : current_benchmark.commonSettings.hashFunctions) { // Done for all benchmarks
             for (const auto& current_algorithm : algorithms) {
                 for (const auto& key_distribution : current_benchmark.commonSettings.keyDistributions) { // Done for all benchmarks
                     for (const auto& working_set : current_benchmark.commonSettings.numInitialActiveNodes) {
-
                         Monotonicity monotonicity(hash_function, current_algorithm.name, current_fraction,
                             key_multiplier * working_set, key_distribution, working_set);
 
-                        random_distribution_ptr<T> ptr = distribution_functions.at(key_distribution);
-
+                        // Callback function to generate a random value (key) depending on which
+                        // distribution was found inside the yaml file.
+                        random_distribution_ptr<T> random_gen_fnt_ptr;
+                        if (distribution_functions.count(key_distribution)) {
+                            random_gen_fnt_ptr = distribution_functions.at(key_distribution);
+                        } else {
+                            fmt::println("[Monotonicity] The specified distribution is not available. Proceeding with default UNIFORM");
+                            random_gen_fnt_ptr = distribution_functions.at("uniform");
+                        }
+                        // Total nodes to remove calculated through the current_fraction, specified in the yaml.
                         const uint32_t num_removals = static_cast<uint32_t>(current_fraction * working_set);
-                        uint32_t capacity = working_set * 10; // default capacity = 10
-                        if (current_algorithm.args.contains("capacity")) {
-                            try {
-                                capacity = std::stoi(current_algorithm.args.at("capacity")) * working_set;
-                            } catch (const std::exception& e) {
-                                std::cerr << "std::stoi exception: " << e.what() << '\n';
-                            }
+
+                        // Even though not all algorithms actually use this value, we still pass it
+                        // so that we can instantiate any algorithm in a generic way.
+                        uint32_t capacity = working_set * 10; // default = 10
+                        if (current_algorithm.args.count("capacity")) {
+                            capacity = str_to<uint32_t>(current_algorithm.args.at("capacity"), 10) * working_set;
                         }
 
-                        if (current_algorithm.name == "null") {
-                            return;
-                        }
-                        else if (current_algorithm.name == "baseline") {
-                            fmt::println("Allocating {} buckets of size {} bytes...", capacity,
-                                sizeof(uint32_t));
-                            uint32_t* bucket_status = new uint32_t[capacity]();
-                            for (uint32_t i = 0; i < working_set; i++) {
-                                bucket_status[i] = 1;
-                            }
-                            uint32_t i = 0;
-                            while (i < num_removals) {
-                                uint32_t removed = rand() % working_set;
-                                if (bucket_status[removed] == 1) {
-                                    bucket_status[removed] = 0;
-                                    i++;
-                                }
-                            }
-                            delete[] bucket_status;
-                        }
-                        else if (current_algorithm.name == "anchor") {
+                        if (current_algorithm.name == "anchor") {
                             bench<AnchorEngine>("Anchor", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "memento") {
                             bench<MementoEngine<boost::unordered_flat_map>>(
                                 "Memento<boost::unordered_flat_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "mementoboost") {
                             bench<MementoEngine<boost::unordered_map>>(
                                 "Memento<boost::unordered_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "mementostd") {
                             bench<MementoEngine<std::unordered_map>>(
                                 "Memento<std::unordered_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "mementogtl") {
                             bench<MementoEngine<gtl::flat_hash_map>>(
                                 "Memento<std::gtl::flat_hash_map>", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "mementomash") {
                             bench<MementoEngine<MashTable>>("Memento<MashTable>",
                                 capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "jump") {
                             bench<JumpEngine>("JumpEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "power") {
                             bench<PowerEngine>("PowerEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
                         else if (current_algorithm.name == "dx") {
                             bench<DxEngine>("DxEngine", capacity, working_set,
                                 num_removals, key_multiplier * working_set, current_fraction,
-                                monotonicity, ptr);
+                                monotonicity, random_gen_fnt_ptr);
                         }
-                        else {
-                            fmt::println("Unknown algorithm {}", current_algorithm.name);
-                        }
+                        else 
+                            fmt::println("[Monotonicity] Unknown algorithm {}", current_algorithm.name);
+
                         monotonicity_writer.add(monotonicity);
                     }
                 }
