@@ -40,7 +40,7 @@ public:
         uint32_t b = m_distribution(rng);
         
         while (m_failed.test(b)) {
-            b = m_distribution(rng); // Find bucket that is not failed
+            b = m_distribution(rng);  
         }
         return b;
     }
