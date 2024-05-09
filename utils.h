@@ -31,8 +31,6 @@ using random_distribution_ptr = T(*)();
 
 uint32_t crc32c_sse42_u64(uint64_t key, uint64_t seed);
 
-std::size_t parse_key_multiplier(const std::string& key_multiplier_str);
-
 std::vector<double> parse_fractions(const std::string& fractions_str);
 
 double convert_ns_to(double ns_time, const std::string& unit);

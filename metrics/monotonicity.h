@@ -30,21 +30,21 @@
 #endif
 #include <fstream>
 #include <sstream>
-#include "anchor/anchorengine.h"
-#include "jump/jumpengine.h"
-#include "memento/mashtable.h"
-#include "memento/mementoengine.h"
-#include "power/powerengine.h"
+#include "../anchor/anchorengine.h"
+#include "../jump/jumpengine.h"
+#include "../memento/mashtable.h"
+#include "../memento/mementoengine.h"
+#include "../power/powerengine.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <string>
 #include <gtl/phmap.hpp>    
 #include <unordered_map>
 #include <vector>
-#include "dx/dxEngine.h"
-#include "YamlParser/YamlParser.h"
-#include "csvWriter.h"
-#include "utils.h"
+#include "../dx/dxEngine.h"
+#include "../YamlParser/YamlParser.h"
+#include "../CsvWriter/csvWriter.h"
+#include "../utils.h"
 
 
 /* Uenerates the map for storing detailed benchmark results

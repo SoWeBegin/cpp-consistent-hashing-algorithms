@@ -25,19 +25,19 @@
 #include "pcg_random.hpp"
 #include <random>
 #endif
-#include "anchor/anchorengine.h"
-#include "memento/mashtable.h"
-#include "memento/mementoengine.h"
-#include "jump/jumpengine.h"
-#include "power/powerengine.h"
+#include "../anchor/anchorengine.h"
+#include "../memento/mashtable.h"
+#include "../memento/mementoengine.h"
+#include "../jump/jumpengine.h"
+#include "../power/powerengine.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <unordered_map>
 #include <gtl/phmap.hpp>
-#include "dx/dxEngine.h"
-#include "csvWriter.h"
-#include "utils.h"
-#include "YamlParser/YamlParser.h"
+#include "../dx/dxEngine.h"
+#include "../CsvWriter/csvWriter.h"
+#include "../utils.h"
+#include "../YamlParser/YamlParser.h"
 #include <vector>
 
  /*

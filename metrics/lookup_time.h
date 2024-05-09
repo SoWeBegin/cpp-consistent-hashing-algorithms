@@ -20,14 +20,14 @@
 
 #include <algorithm>
 #include <chrono>
-#include "anchor/anchorengine.h"
-#include "memento/mashtable.h"
-#include "memento/mementoengine.h"
-#include "jump/jumpengine.h"
-#include "power/powerengine.h"
-#include "dx/dxEngine.h"
-#include "YamlParser/YamlParser.h"
-#include "csvWriter.h"
+#include "../anchor/anchorengine.h"
+#include "../memento/mashtable.h"
+#include "../memento/mementoengine.h"
+#include "../jump/jumpengine.h"
+#include "../power/powerengine.h"
+#include "../dx/dxEngine.h"
+#include "../YamlParser/YamlParser.h"
+#include "../CsvWriter/csvWriter.h"
 #ifdef USE_PCG32
 #include "pcg_random.hpp"
 #include <random>
@@ -39,7 +39,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <gtl/phmap.hpp>
-#include "utils.h"
+#include "../utils.h"
 #include <string_view>
 #include <limits>
 

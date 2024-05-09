@@ -2,7 +2,6 @@
 #include "../YamlParser/YamlParser.h"
 
 
-
 TEST(YamlParserConstructorTest, ValidYamlFile) {
     EXPECT_NO_THROW((YamlParser{ "./", "test.yaml" }));
 }

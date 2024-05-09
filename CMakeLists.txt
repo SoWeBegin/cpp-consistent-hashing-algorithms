@@ -30,8 +30,8 @@ if(WITH_HEAPSTATS)
 endif()
 
 add_executable(cpp-consistent-hashing main.cpp
-    monotonicity.h
-    balance.h
+    "metrics/monotonicity.h"
+    "metrics/balance.h"
     vcpkg.json
     memento/memento.h
     memento/mementoengine.h
@@ -45,15 +45,15 @@ add_executable(cpp-consistent-hashing main.cpp
     power/powerengine.h
     utils.h
     utils.cpp
-    resize_time.h
-    lookup_time.h
+    metrics/resize_time.h
+    metrics/lookup_time.h
     YamlParser/YamlParser.h
-)
+    metrics/init_time.h "CsvWriter/csv_structures.h" "CsvWriter/csv_writer_handler.h")
 
 enable_testing()
 add_executable(yaml-parser-tests unit_tests/test_yaml_parser.cpp
-    monotonicity.h
-    balance.h
+    "metrics/monotonicity.h"
+    "metrics/balance.h"
     vcpkg.json
     memento/memento.h
     memento/mementoengine.h
@@ -67,9 +67,10 @@ add_executable(yaml-parser-tests unit_tests/test_yaml_parser.cpp
     power/powerengine.h
     utils.h
     utils.cpp
-    lookup_time.h
-    resize_time.h
-    YamlParser/YamlParser.h)
+    metrics/lookup_time.h
+    metrics/resize_time.h
+    YamlParser/YamlParser.h 
+    metrics/init_time.h "CsvWriter/csv_structures.h" "CsvWriter/csv_writer_handler.h")
 
 if(WITH_PCG32)
     target_include_directories(cpp-consistent-hashing PRIVATE ${PCG_INCLUDE_DIRS})
