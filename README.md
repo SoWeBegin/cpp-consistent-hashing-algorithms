@@ -10,7 +10,7 @@ The implemented algorithms are:
 
 ## Benchmarks
 
-The project includes three benchmarking tools **lookup_time**, **balance**, **monotonicity**, **memory-usage***, **init_time** and **resize_time**.
+The project includes six benchmarking tools: **lookup_time**, **balance**, **monotonicity**, **memory-usage***, **init_time** and **resize_time**.
 
 **memory_usage** is recorded through **lookup_time**: it measures **heap allocations** and the maximum allocated heap space.
 
@@ -62,7 +62,7 @@ The **init** benchmark finds out how many units of time are needed to initialize
 * Then, to run the unit test, type ctest inside the build directory.
 
 ## Java implementation
-This C++ implementation aims to provide the same output as the following [this Java](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms) implementation.
+This C++ implementation aims to provide the same output as the following [Java](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms) implementation.
 It also aims to be as complete and is meant to be used to compare the two implementations.
 
 ## Credits
