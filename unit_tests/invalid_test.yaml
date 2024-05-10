@@ -8,7 +8,7 @@ common:
     output-folder: /tmp
 
     # Number of times a single benchmark will be executed.
-    iterations:
+    iteratios:
         # Number of non-recorded iterations of a benchmark. Used to warm up the JVM.
         # The warm-up iterations will not be run for benchmarks that doesn't benefit from it.
         # Default value is 5.
@@ -19,7 +19,7 @@ common:
         execution: 5
 
     # Configurations that apply only to time based benchmarks.
-    time:
+    ime:
         # The time unit the results refer to.
         # Possible values are: SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS
         # Default is NANOSECONDS. 
@@ -80,7 +80,7 @@ algorithms:
       args: 
           # Same as above.
           capacity: 10
-    - name: jump
+    - nam: jump
           # No arguments
     - name: maglev
       args:

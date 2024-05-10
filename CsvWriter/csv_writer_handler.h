@@ -3,6 +3,11 @@
 
 #include "csvWriter.h"
 
+// TL;DR: Handlers the CsvWriter. Ts... should be the structs as defined inside csvWriter.h
+// This class makes sure that only the structs that have been used (i.e. get_writer() was called for them)
+// will be written to their respective .csv files. 
+// For example, if T == Balance and get_writer() is not called, that means that we haven't stored
+// any information regarding the balance and thus no .csv output should be created for balance.
 template<typename... Ts>
 class CsvWriterHandler {
 private:

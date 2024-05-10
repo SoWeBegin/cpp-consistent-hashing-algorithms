@@ -63,33 +63,35 @@ inline void bench(const std::string& name,
     //  - how many seconds the bench should last at max (time.execution)
     //  - how many iterations the benchmark should be repeated (time.execution)
     // The first condition to be satisfied ends the benchmark.
-    const auto start_time = std::chrono::high_resolution_clock::now();
+    const auto start_time = std::chrono::steady_clock::now();
     auto current_time = start_time;
     for (std::size_t i = 0; i < total_iterations
         && std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() < total_seconds; ++i) {
 
-        const auto start_bench = std::chrono::high_resolution_clock::now();
+        const auto start_bench = std::chrono::steady_clock::now();
         const auto added = engine.addBucket();
         engine.removeBucket(added);
-        const auto end_bench = std::chrono::high_resolution_clock::now();
+        const auto end_bench = std::chrono::steady_clock::now();
 
-        const auto elapsed_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end_bench - start_bench).count();
-        results.push_back(elapsed_nanoseconds);
+        double elapsed_time_value = convert_elapsed_time_to(end_bench, start_bench, time_unit);
+      
+        results.push_back(elapsed_time_value);
+
+        current_time = std::chrono::steady_clock::now();
     }
 
     // For an explanation, see lookup_time.h.
     double total_elapsed_time = 0.;
     for (double result : results) {
-        total_elapsed_time += convert_ns_to(result, time_unit);
+        total_elapsed_time += result;
     }
     resize_time.score = total_elapsed_time / results.size();
     double sum_squared_diff = 0.0;
     for (double result : results) {
-        const double adjusted_result = convert_ns_to(result, time_unit);
-        const double diff = adjusted_result - resize_time.score;
+        const double diff = result - resize_time.score;
         sum_squared_diff += diff * diff;
     }
-    if (results.size() != 1) {
+    if (results.size() > 1) {
         const double variance = sum_squared_diff / (results.size() - 1);
         resize_time.score_error = sqrt(variance) / sqrt(results.size());
     }

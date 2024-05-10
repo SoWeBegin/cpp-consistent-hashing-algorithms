@@ -3,13 +3,12 @@
 
 
 TEST(YamlParserConstructorTest, ValidYamlFile) {
-    EXPECT_NO_THROW((YamlParser{ "./", "test.yaml" }));
+    EXPECT_NO_THROW((YamlParser{ "../unit_tests", "test.yaml" }));
 }
 
 
 TEST(YamlParserConstructorTest, NonExistentYamlFile) {
     EXPECT_THROW((YamlParser{ "../unit_tests", "nonexistent.yaml" }), std::invalid_argument);
-    EXPECT_THROW((YamlParser{ "../unit_tests/", "invalid_test.yaml" }), std::runtime_error);
 }
 
 

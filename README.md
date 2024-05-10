@@ -6,12 +6,13 @@ The implemented algorithms are:
 * [2020] __anchor hash__ by [Gal Mendelson et al.](https://arxiv.org/pdf/1812.09674.pdf), using the implementation found on [Github](https://github.com/anchorhash/cpp-anchorhash)
 * [2023] __power consistent hash__ by [Eric Leu](https://arxiv.org/pdf/2307.12448.pdf)
 * [2023] __memento hash__ by [M. Coluzzi et al.](https://arxiv.org/pdf/2306.09783.pdf)
+* [2023] __dx hash__ by [Chaos Dong et al.](https://arxiv.org/pdf/2107.07930)
 
 ## Benchmarks
 
-The project includes three benchmarking tools **speed_test**, **balance**, and **monotonicity** derived from the same tools provided by [Anchorhash](https://github.com/anchorhash/cpp-anchorhash)
+The project includes three benchmarking tools **lookup_time**, **balance**, **monotonicity**, **memory-usage***, **init_time** and **resize_time**.
 
-**speed_test** also records **heap allocations** and the maximum allocated heap space.
+**memory_usage** is recorded through **lookup_time**: it measures **heap allocations** and the maximum allocated heap space.
 
 ## Building
 
@@ -36,50 +37,28 @@ Move into the **build** directory and start building:
 cd build
 ninja
 ```
+
 ## Running the benchmarks
-The **speed_test** benchmark performs several random key lookups, the syntax is:
-```bash
-./speed_test Algorithm AnchorSet WorkingSet NumRemovals Numkeys ResFilename
-```
-where
- * **Algorithm** can be *memento* (for MementoHash using *boost::unordered_flat_map* for the removal set), *mementoboost* (for MementoHash using *boost::unordered_map* for the removal set), *mementostd* (for MementoHash using *std::unordered_map* for the removal set), *mementomash* (for MementoHash using a hash table similar to Java's HashMap), *anchor* (for AnchorHash), *mementogtl* (for Memento with gtl hash map), *jump* (for JumpHash), *power* (for Power Consistent Hashing)
- * **AnchorSet** is the size of the Anchor set (**a**): this parameter is used only by *anchor* but must be set to a value *at least equal to WorkingSet* even with *MementoHash*;
- * **WorkingSet** is the size of the initial Working set (**w**);
- * **NumRemovals** is the number of nodes that should be removed (randomly, except for *Jump*) before starting the benchmark;
- * **Numkeys** is the number of keys that will be queried during the benchmark;
- * **ResFilename** is the filename containing the results of the benchmark;
-By default, details about the allocate memory will also be produced in the output. For example:
-```bash
-./speed_test memento 1000000 1000000 20000 1000000 memento.txt
-Algorithm: memento, AnchorSet: 1000000, WorkingSet: 1000000, NumRemovals: 20000, NumKeys: 1000000, ResFileName: memento.txt, Random: rand()
-   @StartBenchmark: Allocations: 0, Allocated: 0, Deallocations: 0, Deallocated: 0, Maximum: 0
-   @AfterAlgorithmInit: Allocations: 0, Allocated: 0, Deallocations: 0, Deallocated: 0, Maximum: 0
-   @AfterRemovals: Allocations: 11, Allocated: 802488, Deallocations: 10, Deallocated: 401076, Maximum: 802488
-   @EndBenchmark: Allocations: 11, Allocated: 802488, Deallocations: 10, Deallocated: 401076, Maximum: 802488
-Memento<boost::unordered_flat_map> Elapsed time is 0.333966 seconds, maximum heap allocated memory is 802488 bytes, sizeof(Memento<boost::unordered_flat_map>) is 56
-```
+* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview, take a look at https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml
+* Once you have done the steps above, you should go in your build directory and insert your template.yaml file there. The name must be exactly "template.yaml".
+* Then, simply start the program with `./cpp-consistent.hashing`.
+* All the output files (in `.csv` format) will be written inside the `build` directory.
 
-The **balance** benchmark performs a balance test and accepts the same parameters as **speed_test**. Example:
+The **lookup** benchmark is needed to test the speed of lookup time.
 
-```bash
-./balance memento 1000000 1000000 20000 1000000 memento.txt
-Algorithm: memento, AnchorSet: 1000000, WorkingSet: 1000000, NumRemovals: 20000, NumKeys: 1000000, ResFileName: memento.txt
-Memento<boost::unordered_flat_map>: LB is 8.82
-```
-The **monotonicity** benchmark performs a monotonicity test and accepts the same parameters as **speed_test**. Example:
+The **balance** benchmark performs a balance test, that is, it checks whether the nodes contain a similar amount of keys.
 
-```bash
-./monotonicity memento 1000000 1000000 1000 1000000 memento.txt
-Algorithm: memento, AnchorSet: 1000000, WorkingSet: 1000000, NumRemovals: 1000, NumKeys: 1000000, ResFileName: memento.txt
-Done determining initial assignment of 1000000 unique keys
-Removed node 424868
-Memento<boost::unordered_flat_map>: after removal misplaced keys are 0% (0 keys out of 1000000)
-Added node 424868
-Memento<boost::unordered_flat_map>: after adding back misplaced keys are 0% (0 keys out of 1000000)
-```
+The **monotonicity** benchmark performs a monotonicity test to find out how many keys are removed out of nodes (and which ones) once some nodes are removed and added back.
+
+The **resize** benchmark checks how many units of time are needed to complete a resize.
+
+The **memory** benchmark simply counts the number of allocations, deallocations and how many bytes were allocated and deallocated.
+
+The **init** benchmark finds out how many units of time are needed to initialize the internal structures of the provided algorithms.
 
 ## Java implementation
-For a Java implementation of these and additional algorithms please refer to [this repository](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms)
+This C++ implementation aims to provide the same output as the following [this Java](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms) implementation.
+It also aims to be as complete and is meant to be used to compare the two implementations.
 
 ## Credits
 The AnchorHash implementation is based on code Copyright (c) 2020 anchorhash released under the MIT License

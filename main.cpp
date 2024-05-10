@@ -23,7 +23,6 @@ int main(int argc, char* argv[]) {
     distribution_function["uniform"] = &random_uniform_distribution<uint64_t>;
 
     CsvWriterHandler<Balance, Monotonicity, LookupTime, MemoryUsage, ResizeTime, InitTime> csv_writer_handler;
-    csv_writer_handler.update_get_writer_called<MemoryUsage>();
 
     for (const auto& current_benchmark : benchmarks) { // Done for all benchmarks in Java
         if (current_benchmark.name == "monotonicity") {
@@ -37,6 +36,7 @@ int main(int argc, char* argv[]) {
                  commonSettings.totalBenchmarkIterations, distribution_function);
         }
         else if (current_benchmark.name == "lookup-time") {
+            csv_writer_handler.update_get_writer_called<MemoryUsage>(); // LookupTime also does MemoryUsage bench
              speed_test(csv_writer_handler.get_writer<LookupTime>(), 
                  commonSettings.outputFolder, current_benchmark, algorithms,
                 commonSettings, distribution_function);

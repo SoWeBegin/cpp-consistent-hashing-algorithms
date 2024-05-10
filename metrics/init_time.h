@@ -52,35 +52,36 @@ inline void bench(const std::string& name,
 
     fmt::println("[InitTime] Starting benchmark, num iterations: {}", total_iterations);
     
-    const auto start_time = std::chrono::high_resolution_clock::now();
+    const auto start_time = std::chrono::steady_clock::now();
     auto current_time = start_time;
     for (std::size_t i = 0; i < total_iterations
         && std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count() < total_seconds; ++i) {
 
-        const auto start_bench = std::chrono::high_resolution_clock::now();
+        const auto start_bench = std::chrono::steady_clock::now();
         Algorithm engine(anchor_set, working_set);
-        const auto end_bench = std::chrono::high_resolution_clock::now();
+        const auto end_bench = std::chrono::steady_clock::now();
 
         // prevent optimization
-        const auto result = engine.getBucketCRC32c(rand(), rand()); // Replace someMethod with an actual method of Algorithm
+        const auto result = engine.getBucketCRC32c(rand(), rand());
 
-        const auto elapsed_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(end_bench - start_bench).count();
-        results.push_back(elapsed_nanoseconds);
+        double elapsed_time_value = convert_elapsed_time_to(end_bench, start_bench, time_unit);
+        results.push_back(elapsed_time_value);
+
+        current_time = std::chrono::steady_clock::now();
     }
 
     // For an explanation, see lookup_time.h.
     double total_elapsed_time = 0.;
     for (double result : results) {
-        total_elapsed_time += convert_ns_to(result, time_unit);
+        total_elapsed_time += result;
     }
     init_time.score = total_elapsed_time / results.size();
     double sum_squared_diff = 0.0;
     for (double result : results) {
-        const double adjusted_result = convert_ns_to(result, time_unit);
-        const double diff = adjusted_result - init_time.score;
+        const double diff = result - init_time.score;
         sum_squared_diff += diff * diff;
     }
-    if (results.size() != 1) {
+    if (results.size() > 1) {
         const double variance = sum_squared_diff / (results.size() - 1);
         init_time.score_error = sqrt(variance) / sqrt(results.size());
     }

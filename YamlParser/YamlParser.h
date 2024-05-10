@@ -186,7 +186,6 @@ public:
         }
       }
       if (common["init-nodes"] && common["init-nodes"].IsSequence()) {
-        std::cout << "in if\n";
         std::size_t total_iter = 0;
         for (const auto &node : common["init-nodes"]) {
           commonSettings.numInitialActiveNodes.push_back(

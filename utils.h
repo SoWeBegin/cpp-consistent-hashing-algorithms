@@ -25,7 +25,10 @@
 #include <type_traits> 
 #include <limits> 
 #include <charconv> // std::from_chars
+#include <chrono>
+#include <stdexcept>
 
+#include <iostream>
 template<typename T>
 using random_distribution_ptr = T(*)();
 
@@ -73,6 +76,31 @@ random_uniform_distribution() {
     std::uniform_int_distribution<T> distr(0, std::numeric_limits<T>::max());
     return distr(generator);
 }
+
+double convert_elapsed_time_to(auto end_time, auto start_time, const std::string& time_unit) {
+    double elapsed_time_value{};
+    if (time_unit == "NANOSECONDS") {
+        std::chrono::duration<double, std::nano> fp_ns = end_time - start_time;
+        return fp_ns.count();
+    }
+    else if (time_unit == "MICROSECONDS") {
+        std::chrono::duration<double, std::micro> fp_mcs = end_time - start_time;
+        return fp_mcs.count();
+    }
+    else if (time_unit == "MILLISECONDS") {
+        std::chrono::duration<double, std::milli> fp_ms = end_time - start_time;
+        return fp_ms.count();
+    }
+    else if (time_unit == "SECONDS") {
+        std::chrono::duration<double, std::nano> fp_ns = end_time - start_time;
+        return fp_ns.count() * 1e-9;
+    }
+    else {
+        throw std::invalid_argument("Invalid time unit specified");
+    }
+    return elapsed_time_value;
+}
+
 
 
 #endif // UTILS_H

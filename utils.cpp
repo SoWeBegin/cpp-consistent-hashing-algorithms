@@ -51,6 +51,6 @@ double convert_ns_to(double ns_time, const std::string& new_unit) {
         return ns_time * 1e-6;
     else if (new_unit == "MICROSECONDS")
         return ns_time * 1e-3;
-    return ns_time;
+    return ns_time; // default unit
 }
 
