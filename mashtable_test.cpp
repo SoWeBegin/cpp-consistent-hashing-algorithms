@@ -17,6 +17,7 @@
 #include "memento/mashtable.h"
 #include "cassert"
 
+/*
 int main() {
     MashTable<uint32_t,std::string> table;
     for(auto z=0; z<10000000; ++z) {
@@ -28,3 +29,4 @@ int main() {
     }
 
 }
+*/
