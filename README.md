@@ -41,7 +41,7 @@ ninja
 ## Running the benchmarks
 * The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview, take a look at https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml
 * Once you have done the steps above, you should go in your build directory and insert your template.yaml file there. The name must be exactly "template.yaml".
-* Then, simply start the program with `./cpp-consistent.hashing`.
+* Then, simply start the program with `./cpp-consistent.hashing` inside the build directory.
 * All the output files (in `.csv` format) will be written inside the `build` directory.
 
 The **lookup** benchmark is needed to test the speed of lookup time.
@@ -55,6 +55,11 @@ The **resize** benchmark checks how many units of time are needed to complete a 
 The **memory** benchmark simply counts the number of allocations, deallocations and how many bytes were allocated and deallocated.
 
 The **init** benchmark finds out how many units of time are needed to initialize the internal structures of the provided algorithms.
+
+## Running the unit test
+* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview, take a look at https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml
+* Once you have done the steps above, you should go in your build directory and insert your template.yaml file there. The name must be exactly "template.yaml".
+* Then, to run the unit test, type ctest inside the build directory.
 
 ## Java implementation
 This C++ implementation aims to provide the same output as the following [this Java](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms) implementation.

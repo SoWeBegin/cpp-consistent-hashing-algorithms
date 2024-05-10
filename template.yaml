@@ -1,0 +1,31 @@
+common:
+    output-folder: /tmp
+
+    iterations:
+        warmup: 1
+        execution: 10
+
+    time:
+        warmup: 1
+        execution: 1
+        unit: MILLISECONDS
+
+    init-nodes: [10, 100, 1000, 10000]
+
+    hash-functions:
+        - crc32
+    
+    key-distributions:
+        - uniform
+
+algorithms:
+    - name: jump
+    - name: dx
+
+benchmarks: 
+    - name: lookup-time
+      # Can be used to override any common configuration.
+      common:
+      # Used to define any benchmark specific argument.
+      args:
+          removal-order: lifo
