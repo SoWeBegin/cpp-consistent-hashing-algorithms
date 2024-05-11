@@ -39,8 +39,8 @@ ninja
 ```
 
 ## Running the benchmarks
-* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview, take a look at https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml
-* Once you have done the steps above, you should go in your build directory and insert your template.yaml file there. The name must be exactly "template.yaml".
+* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview on how the yaml file should be written, take a look [here] (https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml)
+* Once you're done the step above, go in your `build` directory and insert your template.yaml file there. The name must be exactly "template.yaml".
 * Then, simply start the program with `./cpp-consistent.hashing` inside the build directory.
 * All the output files (in `.csv` format) will be written inside the `build` directory.
 
@@ -57,9 +57,7 @@ The **memory** benchmark simply counts the number of allocations, deallocations 
 The **init** benchmark finds out how many units of time are needed to initialize the internal structures of the provided algorithms.
 
 ## Running the unit test
-* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview, take a look at https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml
-* Once you have done the steps above, you should go in your build directory and insert your template.yaml file there. The name must be exactly "template.yaml".
-* Then, to run the unit test, type ctest inside the build directory.
+* Once you have done the steps explained initially (build & ninja), simply `cd build` and `ctest`.
 
 ## Java implementation
 This C++ implementation aims to provide the same output as the following [Java](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms) implementation.
