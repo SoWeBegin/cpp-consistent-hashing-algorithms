@@ -55,80 +55,10 @@ add_executable(cpp-consistent-hashing main.cpp
     metrics/resize_time.h
     metrics/lookup_time.h
     YamlParser/YamlParser.h
-    metrics/init_time.h "CsvWriter/csv_structures.h" "CsvWriter/csv_writer_handler.h")
-
-enable_testing()
-add_executable(yaml-parser-tests unit_tests/test_yaml_parser.cpp
-    "metrics/monotonicity.h"
-    "metrics/balance.h"
-    vcpkg.json
-    memento/memento.h
-    memento/mementoengine.h
-    anchor/AnchorHashQre.cpp
-    anchor/AnchorHashQre.hpp
-    anchor/misc/crc32c_sse42_u64.h
-    anchor/anchorengine.h
-    memento/mashtable.h
-    dx/dxEngine.h
-    jump/jumpengine.h
-    power/powerengine.h
-    utils.h
-    utils.cpp
-    metrics/lookup_time.h
-    metrics/resize_time.h
-    YamlParser/YamlParser.h 
-    metrics/init_time.h "CsvWriter/csv_structures.h" "CsvWriter/csv_writer_handler.h")
-
-enable_testing()
-add_executable(csv-output-tests unit_tests/test_csv_writer.cpp
-    "metrics/monotonicity.h"
-    "metrics/balance.h"
-    vcpkg.json
-    memento/memento.h
-    memento/mementoengine.h
-    anchor/AnchorHashQre.cpp
-    anchor/AnchorHashQre.hpp
-    anchor/misc/crc32c_sse42_u64.h
-    anchor/anchorengine.h
-    memento/mashtable.h
-    dx/dxEngine.h
-    jump/jumpengine.h
-    power/powerengine.h
-    utils.h
-    utils.cpp
-    metrics/lookup_time.h
-    metrics/resize_time.h
-    YamlParser/YamlParser.h 
-    metrics/init_time.h "CsvWriter/csv_structures.h" "CsvWriter/csv_writer_handler.h")
-
- enable_testing()
-add_executable(csv-output-tests2 unit_tests/test_csv_writer_handler.cpp
-    "metrics/monotonicity.h"
-    "metrics/balance.h"
-    vcpkg.json
-    memento/memento.h
-    memento/mementoengine.h
-    anchor/AnchorHashQre.cpp
-    anchor/AnchorHashQre.hpp
-    anchor/misc/crc32c_sse42_u64.h
-    anchor/anchorengine.h
-    memento/mashtable.h
-    dx/dxEngine.h
-    jump/jumpengine.h
-    power/powerengine.h
-    utils.h
-    utils.cpp
-    metrics/lookup_time.h
-    metrics/resize_time.h
-    YamlParser/YamlParser.h 
-    metrics/init_time.h "CsvWriter/csv_structures.h" "CsvWriter/csv_writer_handler.h")
-
-
-if(WITH_PCG32)
-    target_include_directories(cpp-consistent-hashing PRIVATE ${PCG_INCLUDE_DIRS})
-endif()
-
-target_include_directories(cpp-consistent-hashing PRIVATE ${GTL_INCLUDE_DIRS})
+    metrics/init_time.h
+    "CsvWriter/csv_structures.h"
+    "CsvWriter/csv_writer_handler.h"
+)
 
 target_link_libraries(cpp-consistent-hashing PRIVATE
     xxHash::xxhash 
@@ -137,29 +67,15 @@ target_link_libraries(cpp-consistent-hashing PRIVATE
     ${YAML_CPP_LIBRARIES}
 )
 
-target_link_libraries(yaml-parser-tests PRIVATE
-    GTest::gtest_main
-    GTest::gtest
-    xxHash::xxhash 
-    fmt::fmt 
-    cxxopts::cxxopts 
-    ${YAML_CPP_LIBRARIES}
-)
-include(GoogleTest)
-gtest_discover_tests(yaml-parser-tests)
+if(WITH_PCG32)
+    target_include_directories(cpp-consistent-hashing PRIVATE ${PCG_INCLUDE_DIRS})
+endif()
 
-target_link_libraries(csv-output-tests PRIVATE
-    GTest::gtest_main
-    GTest::gtest
-    xxHash::xxhash 
-    fmt::fmt 
-    cxxopts::cxxopts 
-    ${YAML_CPP_LIBRARIES}
-)
-include(GoogleTest)
-gtest_discover_tests(csv-output-tests)
+target_include_directories(cpp-consistent-hashing PRIVATE ${GTL_INCLUDE_DIRS})
 
-target_link_libraries(csv-output-tests2 PRIVATE
+enable_testing()
+
+set(COMMON_LIBRARIES
     GTest::gtest_main
     GTest::gtest
     xxHash::xxhash 
@@ -167,8 +83,39 @@ target_link_libraries(csv-output-tests2 PRIVATE
     cxxopts::cxxopts 
     ${YAML_CPP_LIBRARIES}
 )
-include(GoogleTest)
-gtest_discover_tests(csv-output-tests2)
+
+function(add_test_executable target_name source_file)
+    add_executable(${target_name} unit_tests/${source_file}
+        "metrics/monotonicity.h"
+        "metrics/balance.h"
+        vcpkg.json
+        memento/memento.h
+        memento/mementoengine.h
+        anchor/AnchorHashQre.cpp
+        anchor/AnchorHashQre.hpp
+        anchor/misc/crc32c_sse42_u64.h
+        anchor/anchorengine.h
+        memento/mashtable.h
+        dx/dxEngine.h
+        jump/jumpengine.h
+        power/powerengine.h
+        utils.h
+        utils.cpp
+        metrics/lookup_time.h
+        metrics/resize_time.h
+        YamlParser/YamlParser.h 
+        metrics/init_time.h
+        "CsvWriter/csv_structures.h"
+        "CsvWriter/csv_writer_handler.h"
+    )
+    target_link_libraries(${target_name} PRIVATE ${COMMON_LIBRARIES})
+    include(GoogleTest)
+    gtest_discover_tests(${target_name})
+endfunction()
+
+add_test_executable(yaml-parser-tests test_yaml_parser.cpp)
+add_test_executable(csv-output-tests test_csv_writer.cpp)
+add_test_executable(csv-output-tests2 test_csv_writer_handler.cpp)
 
 include(GNUInstallDirs)
 
@@ -176,4 +123,3 @@ install(TARGETS cpp-consistent-hashing
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
