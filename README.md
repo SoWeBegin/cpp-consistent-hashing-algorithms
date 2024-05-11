@@ -18,7 +18,7 @@ The project includes six benchmarking tools: **lookup_time**, **balance**, **mon
 
 Clone the repository:
 ```bash
-git clone https://github.com/slashdotted/cpp-consistent-hashing-algorithms.git
+git clone https://github.com/SoWeBegin/cpp-consistent-hashing-algorithms.git
 ```
 Move into the project's directory and update the [vcpkg](https://vcpkg.io/en/) submodule:
 ```bash
