@@ -39,24 +39,25 @@ ninja
 ```
 
 ## Running the benchmarks
-* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview on how the yaml file should be written, take a look [here] (https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml)
-* Once you're done the step above, go in your `build` directory and insert your template.yaml file there. The name must be exactly "template.yaml".
-* Then, simply start the program with `./cpp-consistent.hashing` inside the build directory.
-* All the output files (in `.csv` format) will be written inside the `build` directory.
+* The program requires you to provide some parameters that are needed for each benchmark (through .yaml file). For an overview on how the yaml file should be written, take a look [here](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms/blob/main/src/main/resources/configs/template.yaml)
+* Once you've done the step above, go in your `build` directory and insert your `yaml` file there. The name must be exactly `template.yaml`.
+* Then, simply move to the build directory (`cd build`) and run the program with `./cpp-consistent-hashing`.
+* Note: All the output files (in `.csv` format) will be written inside the `build` directory.
 
-The **lookup** benchmark is needed to test the speed of lookup time.
+## Benchmarks overview
+* The **lookup** benchmark simply tests the speed of lookup time on average.
 
-The **balance** benchmark performs a balance test, that is, it checks whether the nodes contain a similar amount of keys.
+* The **balance** benchmark performs a balance test, that is, it checks whether the nodes contain a similar amount of keys.
 
-The **monotonicity** benchmark performs a monotonicity test to find out how many keys are removed out of nodes (and which ones) once some nodes are removed and added back.
+* The **monotonicity** benchmark performs a monotonicity test and gives detailed results, for example how many keys were moved out of removed nodes and how many keys returned to such nodes once they were restored.
 
-The **resize** benchmark checks how many units of time are needed to complete a resize.
+* The **resize** benchmark checks how many units of time are needed to complete a resize (add and remove a node) on average.
 
-The **memory** benchmark simply counts the number of allocations, deallocations and how many bytes were allocated and deallocated.
+* The **memory** benchmark simply counts the number of allocations, deallocations and how many bytes were allocated and deallocated. **Note**: Currently this benchmark will run only if you specify `lookup-time` in the yaml file.
 
-The **init** benchmark finds out how many units of time are needed to initialize the internal structures of the provided algorithms.
+* The **init** benchmark finds out how many units of time are needed to initialize the internal structures of the provided algorithms on average.
 
-## Running the unit test
+## Running the unit tests
 * Once you have done the steps explained initially (build & ninja), simply `cd build` and `ctest`.
 
 ## Java implementation
@@ -65,4 +66,4 @@ It also aims to be as complete and is meant to be used to compare the two implem
 
 ## Credits
 The AnchorHash implementation is based on code Copyright (c) 2020 anchorhash released under the MIT License
-MementoHash is based on the Java implementation found on [this repository](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms), released under the GNU GPL-3.0 license 
+MementoHash and DxHash are both based on the Java implementation found on [this repository](https://github.com/SUPSI-DTI-ISIN/java-consistent-hashing-algorithms), released under the GNU GPL-3.0 license 
